@@ -1,23 +1,36 @@
-import {spawn} from "child_process";
+import {spawn} from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import {JSONRPCEndpoint} from "ts-lsp-client";
-import path from "path";
 
-const pwd = process.cwd();
-const dotnetExe = path.join(pwd, "Fable.Daemon\\bin\\Debug\\net8.0\\Fable.Daemon.exe",)
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const dotnetExe = path.join(currentDir, "Fable.Daemon\\bin\\Debug\\net8.0\\Fable.Daemon.exe",)
 const dotnetProcess = spawn(dotnetExe, ['--stdio'], {
     shell: true, stdio: 'pipe'
 });
-const projectFile = path.join(pwd, "sample-project/App.fsproj");
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout,);
-const result = await endpoint.send('fable/init', { project: projectFile });
-console.log(result);
-const js = await endpoint.send('fable/compile', {
-    fileName: "C:\\Users\\nojaf\\Projects\\vite-plugin-fable\\sample-project\\Library.fs"
-});
-console.log(js)
+const fsharpFileRegex = /\.fsx?$/;
 
-process.on('SIGINT', function() {
-    dotnetProcess.kill();
-});
-
-// C:\Users\nojaf\Projects\vite-plugin-fable\Fable.Daemon\bin\Debug\net8.0\Fable.Daemon.exe
+export default function fablePlugin({ fsproj }) {
+    return {
+        name: "vite-fable-plugin", 
+        buildStart: async options => {
+            const fableLibrary = path.join(process.cwd(), 'node_modules/fable-library')
+            const fsharpOptions = await endpoint.send('fable/init', { project: fsproj, fableLibrary });
+        },
+        transform: async (src, id) => {
+            // id is an fsharp file path that was imported from some place.
+            if (fsharpFileRegex.test(id)){
+                const js = await endpoint.send('fable/compile', {
+                    fileName: id
+                });
+                return {
+                    code: js
+                }
+            }
+        },
+        buildEnd: () => {
+            dotnetProcess.kill();
+        }
+    }
+}

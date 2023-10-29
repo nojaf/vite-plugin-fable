@@ -14,7 +14,7 @@ let isFSharpFile (file : string) =
     Seq.exists (fun (ext : string) -> file.EndsWith ext) fsharpFiles
 
 let mkOptions (fsproj : string) (compilerArgs : string array) =
-    let projectDir = Path.GetDirectoryName (fsproj)
+    let projectDir = Path.GetDirectoryName fsproj
 
     let sourceFiles =
         compilerArgs

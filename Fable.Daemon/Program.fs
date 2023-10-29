@@ -9,10 +9,12 @@ open Fable.Compiler.Service.ProjectCracker
 open Fable.Compiler.Service.Util
 open Fable.Daemon
 
-type InitPayload =
+type ProjectChangedPayload =
     {
         /// Absolute path of fsproj
         Project : string
+        /// Absolute path of fable-library. Typically found in the npm modules
+        FableLibrary : string
     }
 
 type PingPayload = { Msg : string }
@@ -20,7 +22,7 @@ type PingPayload = { Msg : string }
 type CompileFilePayload = { FileName : string }
 
 type Msg =
-    | ProjectChanged of fsproj : string * AsyncReplyChannel<FSharpProjectOptions>
+    | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<FSharpProjectOptions>
     | CompileFile of fileName : string * AsyncReplyChannel<string>
     | Disconnect
 
@@ -71,7 +73,6 @@ let dummyPathResolver =
         member _.GetOrAddDeduplicateTargetDir (_importDir, _addTargetDir) = ""
     }
 
-
 type FableServer(sender : Stream, reader : Stream) as this =
     let rpc : JsonRpc = JsonRpc.Attach (sender, reader, this)
 
@@ -82,15 +83,16 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     let! msg = inbox.Receive ()
 
                     match msg with
-                    | ProjectChanged (fsproj, replyChannel) ->
-                        let projectOptions = CoolCatCracking.mkOptionsFromDesignTimeBuild fsproj ""
+                    | ProjectChanged (payload, replyChannel) ->
+                        let projectOptions = CoolCatCracking.mkOptionsFromDesignTimeBuild payload.Project ""
                         replyChannel.Reply projectOptions
 
                         let crackerResponse : CrackerResponse =
                             {
+                                FableLibDir = payload.FableLibrary
                                 // TODO: update to sample
-                                FableLibDir = @"C:\Users\nojaf\Projects\MyFableApp\fable_modules\fable-library.4.3.0"
-                                FableModulesDir = @"C:\Users\nojaf\Projects\MyFableApp\fable_modules"
+                                FableModulesDir =
+                                    @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\fable_modules"
                                 References = []
                                 ProjectOptions = projectOptions
                                 OutputType = OutputType.Library
@@ -156,8 +158,8 @@ type FableServer(sender : Stream, reader : Stream) as this =
         task { return "And dotnet will answer" }
 
     [<JsonRpcMethod("fable/init", UseSingleObjectParameterDeserialization = true)>]
-    member _.Init (p : InitPayload) =
-        task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p.Project, replyChannel)) }
+    member _.Init (p : ProjectChangedPayload) =
+        task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p, replyChannel)) }
 
     [<JsonRpcMethod("fable/compile", UseSingleObjectParameterDeserialization = true)>]
     member _.CompileFile (p : CompileFilePayload) =

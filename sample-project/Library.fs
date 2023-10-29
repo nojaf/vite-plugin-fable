@@ -2,4 +2,4 @@
 
 open Fable.Core.JS
 
-console.log "meh"
+console.log "meh from Fable"
