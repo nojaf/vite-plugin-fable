@@ -9,20 +9,8 @@ open Fable.Compiler.Service.ProjectCracker
 open Fable.Compiler.Service.Util
 open Fable.Daemon
 
-type ProjectChangedPayload =
-    {
-        /// Absolute path of fsproj
-        Project : string
-        /// Absolute path of fable-library. Typically found in the npm modules
-        FableLibrary : string
-    }
-
-type PingPayload = { Msg : string }
-
-type CompileFilePayload = { FileName : string }
-
 type Msg =
-    | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<FSharpProjectOptions>
+    | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<ProjectChangedResult>
     | CompileFile of fileName : string * AsyncReplyChannel<string>
     | Disconnect
 
@@ -85,7 +73,6 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
                         let projectOptions = CoolCatCracking.mkOptionsFromDesignTimeBuild payload.Project ""
-                        replyChannel.Reply projectOptions
 
                         let crackerResponse : CrackerResponse =
                             {
@@ -104,8 +91,8 @@ type FableServer(sender : Stream, reader : Stream) as this =
                         let checker = InteractiveChecker.Create (projectOptions)
 
                         let sourceReader =
-                            Fable.Transforms.File.MakeSourceReader (
-                                Array.map Fable.Transforms.File crackerResponse.ProjectOptions.SourceFiles
+                            Fable.Compiler.File.MakeSourceReader (
+                                Array.map Fable.Compiler.File crackerResponse.ProjectOptions.SourceFiles
                             )
                             |> snd
 
@@ -115,6 +102,31 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                 checker
                                 cliArgs
                                 crackerResponse
+
+                        let! initialCompiledFiles =
+                            Map.keys compilers
+                            |> Seq.map (fun file ->
+                                async {
+                                    let compiler = Map.find file compilers
+                                    let jsFile = Path.ChangeExtension (file, ".js")
+
+                                    let! javascript, _dependentFiles =
+                                        Fable.Compiler.CodeServices.compileFile
+                                            sourceReader
+                                            compiler
+                                            dummyPathResolver
+                                            jsFile
+
+                                    return jsFile, javascript
+                                }
+                            )
+                            |> Async.Parallel
+
+                        replyChannel.Reply
+                            {
+                                ProjectOptions = projectOptions
+                                CompiledFSharpFiles = Map.ofArray initialCompiledFiles
+                            }
 
                         return!
                             loop

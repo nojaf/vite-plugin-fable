@@ -55,6 +55,9 @@ let dotnet pwd args =
     psi.Arguments <- args
     psi.RedirectStandardOutput <- true
     psi.UseShellExecute <- false
+    // needed to escape the global.json circle of influence
+    psi.EnvironmentVariables.Remove "MSBuildExtensionsPath"
+    psi.EnvironmentVariables.Remove "MSBuildSDKsPath"
     use ps = new Process ()
     ps.StartInfo <- psi
     ps.Start () |> ignore

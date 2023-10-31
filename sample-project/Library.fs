@@ -1,5 +1,8 @@
 ﻿module App
 
 open Fable.Core.JS
+open Math
 
-console.log "meh from Fable"
+let r = sum 1 2
+
+console.log $"meh from Fable, %i{r}"

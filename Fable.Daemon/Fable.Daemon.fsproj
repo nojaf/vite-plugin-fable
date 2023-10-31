@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="CoolCatCracking.fs" />
+    <Compile Include="Types.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
