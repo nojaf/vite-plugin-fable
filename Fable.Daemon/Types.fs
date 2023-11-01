@@ -15,6 +15,11 @@ type ProjectChangedResult =
         ProjectOptions : FSharpProjectOptions
         CompiledFSharpFiles : Map<string, string>
     }
+    
+type FileChangedResult =
+    {
+        CompiledFSharpFiles : Map<string, string>
+    }
 
 type PingPayload = { Msg : string }
 

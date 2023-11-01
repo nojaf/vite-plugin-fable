@@ -2,6 +2,8 @@
 open System.IO
 open System.Threading.Tasks
 open Fable
+open Newtonsoft.Json
+open Newtonsoft.Json.Serialization
 open StreamJsonRpc
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.SourceCodeServices
@@ -11,7 +13,7 @@ open Fable.Daemon
 
 type Msg =
     | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<ProjectChangedResult>
-    | CompileFile of fileName : string * AsyncReplyChannel<string>
+    | CompileFile of fileName : string * AsyncReplyChannel<FileChangedResult>
     | Disconnect
 
 type Model =
@@ -19,7 +21,6 @@ type Model =
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
-        Compilers : Map<string, Compiler>
     }
 
 let cliArgs : CliArgs =
@@ -61,6 +62,8 @@ let dummyPathResolver =
         member _.GetOrAddDeduplicateTargetDir (_importDir, _addTargetDir) = ""
     }
 
+type PongResponse = { Message : string }
+
 type FableServer(sender : Stream, reader : Stream) as this =
     let rpc : JsonRpc = JsonRpc.Attach (sender, reader, this)
 
@@ -88,7 +91,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                 CanReuseCompiledFiles = false
                             }
 
-                        let checker = InteractiveChecker.Create (projectOptions)
+                        let checker = InteractiveChecker.Create projectOptions
 
                         let sourceReader =
                             Fable.Compiler.File.MakeSourceReader (
@@ -96,36 +99,18 @@ type FableServer(sender : Stream, reader : Stream) as this =
                             )
                             |> snd
 
-                        let! compilers =
-                            Fable.Compiler.CodeServices.mkCompilersForProject
+                        let! initialCompiledFiles =
+                            Fable.Compiler.CodeServices.compileProjectToJavaScript
                                 sourceReader
                                 checker
+                                dummyPathResolver
                                 cliArgs
                                 crackerResponse
-
-                        let! initialCompiledFiles =
-                            Map.keys compilers
-                            |> Seq.map (fun file ->
-                                async {
-                                    let compiler = Map.find file compilers
-                                    let jsFile = Path.ChangeExtension (file, ".js")
-
-                                    let! javascript, _dependentFiles =
-                                        Fable.Compiler.CodeServices.compileFile
-                                            sourceReader
-                                            compiler
-                                            dummyPathResolver
-                                            jsFile
-
-                                    return jsFile, javascript
-                                }
-                            )
-                            |> Async.Parallel
 
                         replyChannel.Reply
                             {
                                 ProjectOptions = projectOptions
-                                CompiledFSharpFiles = Map.ofArray initialCompiledFiles
+                                CompiledFSharpFiles = initialCompiledFiles
                             }
 
                         return!
@@ -134,25 +119,23 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                     CrackerResponse = crackerResponse
                                     Checker = checker
                                     SourceReader = sourceReader
-                                    Compilers = compilers
                                 }
 
                     // TODO: this probably means the file was changed as well.
                     | CompileFile (fileName, replyChannel) ->
                         let fileName = Path.normalizePath fileName
 
-                        match Map.tryFind fileName model.Compilers with
-                        | None -> failwith $"File {fileName}"
-                        | Some compiler ->
-                            let! javascript, dependentFiles =
-                                Fable.Compiler.CodeServices.compileFile
-                                    model.SourceReader
-                                    compiler
-                                    dummyPathResolver
-                                    (Path.ChangeExtension (fileName, ".js"))
+                        let! compiledFiles =
+                            Fable.Compiler.CodeServices.compileFileToJavaScript
+                                model.SourceReader
+                                model.Checker
+                                dummyPathResolver
+                                cliArgs
+                                model.CrackerResponse
+                                fileName
 
-                            replyChannel.Reply javascript
-                            return! loop model
+                        replyChannel.Reply { CompiledFSharpFiles = compiledFiles }
+                        return! loop model
                     | Disconnect -> return ()
                 }
 
@@ -166,8 +149,8 @@ type FableServer(sender : Stream, reader : Stream) as this =
     member this.WaitForClose = rpc.Completion
 
     [<JsonRpcMethod("fable/ping", UseSingleObjectParameterDeserialization = true)>]
-    member _.Ping (p : PingPayload) : Task<string> =
-        task { return "And dotnet will answer" }
+    member _.Ping (_p : PingPayload) : Task<PongResponse> =
+        task { return { Message = "And dotnet will answer" } }
 
     [<JsonRpcMethod("fable/init", UseSingleObjectParameterDeserialization = true)>]
     member _.Init (p : ProjectChangedPayload) =

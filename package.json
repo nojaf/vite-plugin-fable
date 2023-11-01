@@ -11,6 +11,7 @@
   "author": "nojaf",
   "license": "MIT",
   "dependencies": {
-    "ts-lsp-client": "^1.0.1"
+    "ts-lsp-client": "^1.0.1",
+    "vite": "^4.5.0"
   }
 }

@@ -13,5 +13,4 @@
   <ItemGroup>
     <PackageReference Include="Fable.Core" Version="4.2.0" />
   </ItemGroup>
-
 </Project>
