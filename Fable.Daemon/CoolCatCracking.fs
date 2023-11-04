@@ -6,7 +6,7 @@ open System.IO
 open System.Text.Json
 open FSharp.Compiler.CodeAnalysis
 open Fable
-open Fable.Compiler.Service.Util
+open Fable.Compiler.Util
 
 let fsharpFiles = set [| ".fs" ; ".fsi" ; ".fsx" |]
 
