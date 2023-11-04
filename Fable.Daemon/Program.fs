@@ -7,8 +7,8 @@ open Newtonsoft.Json.Serialization
 open StreamJsonRpc
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.SourceCodeServices
-open Fable.Compiler.Service.ProjectCracker
-open Fable.Compiler.Service.Util
+open Fable.Compiler.ProjectCracker
+open Fable.Compiler.Util
 open Fable.Daemon
 
 type Msg =
@@ -65,7 +65,11 @@ let dummyPathResolver =
 type PongResponse = { Message : string }
 
 type FableServer(sender : Stream, reader : Stream) as this =
-    let rpc : JsonRpc = JsonRpc.Attach (sender, reader, this)
+    let jsonMessageFormatter = new JsonMessageFormatter ()
+    do jsonMessageFormatter.JsonSerializer.ContractResolver <- DefaultContractResolver(NamingStrategy = CamelCaseNamingStrategy())
+    let handler = new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)
+    let rpc : JsonRpc = new JsonRpc(handler, this)
+    do rpc.StartListening()
 
     let mailbox =
         MailboxProcessor.Start (fun inbox ->
@@ -125,9 +129,15 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     | CompileFile (fileName, replyChannel) ->
                         let fileName = Path.normalizePath fileName
 
+                        let sourceReader =
+                            Fable.Compiler.File.MakeSourceReader (
+                                Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
+                            )
+                            |> snd
+                        
                         let! compiledFiles =
                             Fable.Compiler.CodeServices.compileFileToJavaScript
-                                model.SourceReader
+                                sourceReader
                                 model.Checker
                                 dummyPathResolver
                                 cliArgs
