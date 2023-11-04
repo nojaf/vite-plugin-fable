@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
 
         <IsPackable>false</IsPackable>
         <GenerateProgramFile>false</GenerateProgramFile>
@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
+        <PackageReference Include="Nerdbank.Streams" Version="2.10.72" />
         <PackageReference Include="NUnit" Version="3.13.3"/>
         <PackageReference Include="NUnit3TestAdapter" Version="4.2.1"/>
         <PackageReference Include="NUnit.Analyzers" Version="3.3.0"/>
@@ -25,8 +26,14 @@
 
     <ItemGroup>
         <PackageReference Include="StreamJsonRpc" Version="2.16.36"/>
-        <Reference Include="../../fable/lib/fcs/FSharp.Core.dll"/>
-        <Reference Include="../../fable/lib/fcs/FSharp.Compiler.Service.dll"/>
+<!--        <Reference Include="../../fable/lib/fcs/FSharp.Core.dll"/>-->
+<!--        <Reference Include="../../fable/lib/fcs/FSharp.Compiler.Service.dll"/>-->
+        <Reference Include="C:\Users\nojaf\Projects\fsharp\artifacts\bin\FSharp.Core\Debug\netstandard2.0\FSharp.Core.dll" />
+        <Reference Include="C:\Users\nojaf\Projects\fsharp\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.Compiler.Service.dll" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Fable.Daemon\Fable.Daemon.fsproj" />
     </ItemGroup>
 
 </Project>
