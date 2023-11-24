@@ -16,14 +16,23 @@ let DebugTest () =
         client.StartListening ()
 
         let! response =
-            client.InvokeAsync<ProjectChangedResult> (
-                "fable/init",
+            daemon.Init (
                 {
                     Project = @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\App.fsproj"
                     FableLibrary =
                         @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\node_modules\fable-library"
                 }
             )
+
+        // let! response =
+        //     client.InvokeAsync<ProjectChangedResult> (
+        //         "fable/init",
+        //         {
+        //             Project = @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\App.fsproj"
+        //             FableLibrary =
+        //                 @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\node_modules\fable-library"
+        //         }
+        //     )
 
         client.Dispose ()
         (daemon :> IDisposable).Dispose ()

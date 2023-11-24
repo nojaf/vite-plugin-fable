@@ -37,6 +37,15 @@ export default function fablePlugin({fsproj}) {
         buildStart: async function (options) {
             const projectResponse = await getProjectFile(fsproj);
             console.log("projectResponse", projectResponse);
+            /*
+            {
+                Case: "Success",
+                Fields: [ { projectOptions }, { map with compiled files } ]
+            }
+            
+             */
+            
+            
             // this.addWatchFile(normalizePath(fsproj));
             // TODO: addWatchFile, see https://rollupjs.org/plugin-development/#this-addwatchfile
             // for proj file
@@ -75,23 +84,23 @@ export default function fablePlugin({fsproj}) {
             }
         },
         watchChange: async function (id, change) {
-            console.log("watchChange", id, change);
-            if (id.endsWith('.fsproj')){
-                console.log("Should reload project")
-            }
-            else if (fsharpFileRegex.test(id)) {
-                console.log("file changed");
-                const compilationResult = await endpoint.send("fable/compile", { fileName: id });
-                console.log(compilationResult);
-                const loadPromises =
-                    Object.keys(compilationResult.compiledFSharpFiles).map(fsFile => {
-                        const jsFile = fsFile.replace(fsharpFileRegex ,'.js')
-                        console.log("jsFile XYZ", jsFile);
-                        compilableFiles.set(jsFile, compilationResult.compiledFSharpFiles[fsFile]);
-                        return this.load({ id:jsFile });
-                    });
-                await Promise.all(loadPromises);
-            }
+            // console.log("watchChange", id, change);
+            // if (id.endsWith('.fsproj')){
+            //     console.log("Should reload project")
+            // }
+            // else if (fsharpFileRegex.test(id)) {
+            //     console.log("file changed");
+            //     const compilationResult = await endpoint.send("fable/compile", { fileName: id });
+            //     console.log(compilationResult);
+            //     const loadPromises =
+            //         Object.keys(compilationResult.compiledFSharpFiles).map(fsFile => {
+            //             const jsFile = fsFile.replace(fsharpFileRegex ,'.js')
+            //             console.log("jsFile XYZ", jsFile);
+            //             compilableFiles.set(jsFile, compilationResult.compiledFSharpFiles[fsFile]);
+            //             return this.load({ id:jsFile });
+            //         });
+            //     await Promise.all(loadPromises);
+            // }
         },
         handleHotUpdate({ file, server, modules }) {
             if(fsharpFileRegex.test(file)) {

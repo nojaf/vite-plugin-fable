@@ -2,7 +2,6 @@
 open System.IO
 open System.Threading.Tasks
 open Fable
-open Newtonsoft.Json
 open Newtonsoft.Json.Serialization
 open StreamJsonRpc
 open FSharp.Compiler.CodeAnalysis
@@ -18,58 +17,115 @@ type Msg =
 
 type Model =
     {
+        CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
-    }
-
-let cliArgs : CliArgs =
-    {
-        ProjectFile = @"C:\Users\nojaf\Projects\MyFableApp\App.fsproj"
-        RootDir = @"C:\Users\nojaf\Projects\MyFableApp"
-        OutDir = None
-        IsWatch = false
-        Precompile = false
-        PrecompiledLib = None
-        PrintAst = false
-        FableLibraryPath = None
-        Configuration = "Release"
-        NoRestore = true
-        NoCache = true
-        NoParallelTypeCheck = false
-        SourceMaps = false
-        SourceMapsRoot = None
-        Exclude = []
-        Replace = Map.empty
-        CompilerOptions =
-            {
-                TypedArrays = false
-                ClampByteArrays = false
-                Language = Language.JavaScript
-                Define = [ "FABLE_COMPILER" ; "FABLE_COMPILER_4" ; "FABLE_COMPILER_JAVASCRIPT" ]
-                DebugMode = false
-                OptimizeFSharpAst = false
-                Verbosity = Verbosity.Verbose
-                FileExtension = ".js"
-                TriggeredByDependency = false
-                NoReflection = false
-            }
-    }
-
-let dummyPathResolver =
-    { new PathResolver with
-        member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
-        member _.GetOrAddDeduplicateTargetDir (_importDir, _addTargetDir) = ""
+        PathResolver : PathResolver
     }
 
 type PongResponse = { Message : string }
 
+type CompiledProjectData =
+    {
+        ProjectOptions : FSharpProjectOptions
+        CompiledFSharpFiles : Map<string, string>
+        CliArgs : CliArgs
+        Checker : InteractiveChecker
+        CrackerResponse : CrackerResponse
+        SourceReader : SourceReader
+        PathResolver : PathResolver
+    }
+
+let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledProjectData, string>> =
+    async {
+        try
+            let cliArgs : CliArgs =
+                {
+                    ProjectFile = payload.Project
+                    RootDir = Path.GetDirectoryName payload.Project
+                    OutDir = None
+                    IsWatch = false
+                    Precompile = false
+                    PrecompiledLib = None
+                    PrintAst = false
+                    FableLibraryPath = Some payload.FableLibrary
+                    Configuration = "Release"
+                    NoRestore = true
+                    NoCache = true
+                    NoParallelTypeCheck = false
+                    SourceMaps = false
+                    SourceMapsRoot = None
+                    Exclude = []
+                    Replace = Map.empty
+                    CompilerOptions =
+                        {
+                            TypedArrays = false
+                            ClampByteArrays = false
+                            Language = Language.JavaScript
+                            Define = [ "FABLE_COMPILER" ; "FABLE_COMPILER_4" ; "FABLE_COMPILER_JAVASCRIPT" ]
+                            DebugMode = false
+                            OptimizeFSharpAst = false
+                            Verbosity = Verbosity.Verbose
+                            FileExtension = ".js"
+                            TriggeredByDependency = false
+                            NoReflection = false
+                        }
+                    RunProcess = None
+                }
+
+            let crackerOptions = CrackerOptions cliArgs
+            let crackerResponse = getFullProjectOpts crackerOptions
+            let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
+
+            let sourceReader =
+                Fable.Compiler.File.MakeSourceReader (
+                    Array.map Fable.Compiler.File crackerResponse.ProjectOptions.SourceFiles
+                )
+                |> snd
+
+            let dummyPathResolver =
+                { new PathResolver with
+                    member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
+                    member _.GetOrAddDeduplicateTargetDir (_importDir, _addTargetDir) = ""
+                }
+
+            let! initialCompiledFiles =
+                Fable.Compiler.CodeServices.compileProjectToJavaScript
+                    sourceReader
+                    checker
+                    dummyPathResolver
+                    cliArgs
+                    crackerResponse
+
+            return
+                Ok
+                    {
+                        ProjectOptions = crackerResponse.ProjectOptions
+                        CompiledFSharpFiles = initialCompiledFiles
+                        CliArgs = cliArgs
+                        Checker = checker
+                        CrackerResponse = crackerResponse
+                        SourceReader = sourceReader
+                        PathResolver = dummyPathResolver
+                    }
+        with ex ->
+            return Error ex.Message
+    }
+
+
 type FableServer(sender : Stream, reader : Stream) as this =
     let jsonMessageFormatter = new JsonMessageFormatter ()
-    do jsonMessageFormatter.JsonSerializer.ContractResolver <- DefaultContractResolver(NamingStrategy = CamelCaseNamingStrategy())
-    let handler = new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)
-    let rpc : JsonRpc = new JsonRpc(handler, this)
-    do rpc.StartListening()
+
+    do
+        jsonMessageFormatter.JsonSerializer.ContractResolver <-
+            DefaultContractResolver (NamingStrategy = CamelCaseNamingStrategy ())
+
+    let handler =
+        new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)
+
+    let rpc : JsonRpc = new JsonRpc (handler, this)
+    do rpc.StartListening ()
 
     let mailbox =
         MailboxProcessor.Start (fun inbox ->
@@ -79,51 +135,26 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let projectOptions = CoolCatCracking.mkOptionsFromDesignTimeBuild payload.Project ""
+                        let! result = tryCompileProject payload
 
-                        let crackerResponse : CrackerResponse =
-                            {
-                                FableLibDir = payload.FableLibrary
-                                // TODO: update to sample
-                                FableModulesDir =
-                                    @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\fable_modules"
-                                References = []
-                                ProjectOptions = projectOptions
-                                OutputType = OutputType.Library
-                                TargetFramework = "net8.0"
-                                PrecompiledInfo = None
-                                CanReuseCompiledFiles = false
-                            }
-
-                        let checker = InteractiveChecker.Create projectOptions
-
-                        let sourceReader =
-                            Fable.Compiler.File.MakeSourceReader (
-                                Array.map Fable.Compiler.File crackerResponse.ProjectOptions.SourceFiles
+                        match result with
+                        | Error error ->
+                            replyChannel.Reply (ProjectChangedResult.Error error)
+                            return! loop model
+                        | Ok result ->
+                            replyChannel.Reply (
+                                ProjectChangedResult.Success (result.ProjectOptions, result.CompiledFSharpFiles)
                             )
-                            |> snd
 
-                        let! initialCompiledFiles =
-                            Fable.Compiler.CodeServices.compileProjectToJavaScript
-                                sourceReader
-                                checker
-                                dummyPathResolver
-                                cliArgs
-                                crackerResponse
-
-                        replyChannel.Reply
-                            {
-                                ProjectOptions = projectOptions
-                                CompiledFSharpFiles = initialCompiledFiles
-                            }
-
-                        return!
-                            loop
-                                {
-                                    CrackerResponse = crackerResponse
-                                    Checker = checker
-                                    SourceReader = sourceReader
-                                }
+                            return!
+                                loop
+                                    {
+                                        CliArgs = result.CliArgs
+                                        Checker = result.Checker
+                                        CrackerResponse = result.CrackerResponse
+                                        SourceReader = result.SourceReader
+                                        PathResolver = result.PathResolver
+                                    }
 
                     // TODO: this probably means the file was changed as well.
                     | CompileFile (fileName, replyChannel) ->
@@ -134,13 +165,13 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                 Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
                             )
                             |> snd
-                        
+
                         let! compiledFiles =
                             Fable.Compiler.CodeServices.compileFileToJavaScript
                                 sourceReader
                                 model.Checker
-                                dummyPathResolver
-                                cliArgs
+                                model.PathResolver
+                                model.CliArgs
                                 model.CrackerResponse
                                 fileName
 

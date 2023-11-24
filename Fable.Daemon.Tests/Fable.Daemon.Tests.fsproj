@@ -26,10 +26,8 @@
 
     <ItemGroup>
         <PackageReference Include="StreamJsonRpc" Version="2.16.36"/>
-<!--        <Reference Include="../../fable/lib/fcs/FSharp.Core.dll"/>-->
-<!--        <Reference Include="../../fable/lib/fcs/FSharp.Compiler.Service.dll"/>-->
-        <Reference Include="C:\Users\nojaf\Projects\fsharp\artifacts\bin\FSharp.Core\Debug\netstandard2.0\FSharp.Core.dll" />
-        <Reference Include="C:\Users\nojaf\Projects\fsharp\artifacts\bin\FSharp.Compiler.Service\Debug\netstandard2.0\FSharp.Compiler.Service.dll" />
+        <Reference Include="../../fable/lib/fcs/nojaf/Debug/FSharp.Core.dll"/>
+        <Reference Include="../../fable/lib/fcs/nojaf/Debug/FSharp.Compiler.Service.dll"/>
     </ItemGroup>
 
     <ItemGroup>

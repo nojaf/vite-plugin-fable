@@ -10,12 +10,11 @@ type ProjectChangedPayload =
         FableLibrary : string
     }
 
+[<RequireQualifiedAccess>]
 type ProjectChangedResult =
-    {
-        ProjectOptions : FSharpProjectOptions
-        CompiledFSharpFiles : Map<string, string>
-    }
-    
+    | Success of projectOptions : FSharpProjectOptions * compiledFiles : Map<string, string>
+    | Error of string
+
 type FileChangedResult =
     {
         CompiledFSharpFiles : Map<string, string>
