@@ -7,12 +7,11 @@ open Thoth.Json
 
 let r = sum 1 2
 
-let someDecoder =
+let someJsonString =
     Encode.object [
-        "track", Encode.string "Man in the Mirror"
+        "track", Encode.string "Smooth criminal"
     ]
     |> Encode.toString 4
 
 let h1Element = document.querySelector "h1"
-h1Element.textContent <- $"Dynamic Fable text yow %i{r}!"
-console.info someDecoder
+h1Element.textContent <- $"Dynamic Fable text yow %i{r}! %s{someJsonString}"
