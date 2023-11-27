@@ -18,21 +18,15 @@ const dotnetProcess = spawn(dotnetExe, ["--stdio"], {
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
 const fableLibrary = path.join(process.cwd(), "node_modules/fable-library");
 
-async function findFsProjFile(filePaths) {
-  const promises = filePaths.map(async (filePath) => {
-    let currentDir = path.dirname(filePath);
-    const files = await fs.readdir(currentDir);
-    return files
-      .filter((file) => file && file.toLocaleLowerCase().endsWith(".fsproj"))
-      .map((fsProjFile) => {
-        // Return the full path of the .fsproj file
-        return normalizePath(path.join(currentDir, fsProjFile));
-      });
-  });
-
-  const projectsInFolders = await Promise.all(promises);
-  const allProjFiles = projectsInFolders.flat();
-  return allProjFiles.length === 0 ? null : allProjFiles[0];
+async function findFsProjFile(configDir) {
+  const files = await fs.readdir(configDir);
+  const fsprojFiles = files
+    .filter((file) => file && file.toLocaleLowerCase().endsWith(".fsproj"))
+    .map((fsProjFile) => {
+      // Return the full path of the .fsproj file
+      return normalizePath(path.join(configDir, fsProjFile));
+    });
+  return fsprojFiles.length > 0 ? fsprojFiles[0] : null;
 }
 
 async function getProjectFile(project) {
@@ -46,25 +40,28 @@ export default function fablePlugin(config = {}) {
   // A map of <js filePath, code>
   const compilableFiles = new Map();
   let projectOptions = null;
+  let fsproj;
 
   return {
     name: "vite-fable-plugin",
-    buildStart: async function (options) {
-      // Use the first fsproj we can find.
-      let fsproj;
+    configResolved: async function (resolvedConfig) {
+      const configDir = path.dirname(resolvedConfig.configFile);
+
       if (config && config.fsproj) {
         fsproj = config.fsproj;
       } else {
-        fsproj = await findFsProjFile(options.input);
+        fsproj = await findFsProjFile(configDir);
       }
 
       if (!fsproj) {
-        const folders = options.input.map(path.dirname).join(",");
-        this.error(`[buildStart] No .fsproj file was found in ${folders}`);
+        resolvedConfig.logger.error(
+          `[configResolved] No .fsproj file was found in ${configDir}`,
+        );
       } else {
-        this.info(`[buildStart] Entry fsproj ${fsproj}`);
+        resolvedConfig.logger.info(`[configResolved] Entry fsproj ${fsproj}`);
       }
-
+    },
+    buildStart: async function (options) {
       const projectResponse = await getProjectFile(fsproj);
       if (
         projectResponse.Case === "Success" &&
@@ -135,20 +132,18 @@ export default function fablePlugin(config = {}) {
     },
     watchChange: async function (id, change) {
       if (projectOptions) {
-        console.log("watchChange", id, change);
         if (id.endsWith(".fsproj")) {
-          console.log("Should reload project");
+          this.info("[watchChange] Should reload project");
         } else if (fsharpFileRegex.test(id)) {
-          console.log("file changed");
+          this.info(`[watchChange] ${id} changed`);
           const compilationResult = await endpoint.send("fable/compile", {
             fileName: id,
           });
-          console.log(compilationResult);
+          this.info(`[watchChange] ${id} compiled, ${compilationResult}`);
           const loadPromises = Object.keys(
             compilationResult.compiledFSharpFiles,
           ).map((fsFile) => {
             const jsFile = fsFile.replace(fsharpFileRegex, ".js");
-            console.log("jsFile XYZ", jsFile);
             compilableFiles.set(
               jsFile,
               compilationResult.compiledFSharpFiles[fsFile],
@@ -159,13 +154,14 @@ export default function fablePlugin(config = {}) {
         }
       }
     },
-    handleHotUpdate({ file, server, modules }) {
+    handleHotUpdate: function ({ file, server, modules }) {
       if (fsharpFileRegex.test(file)) {
         const fileIdx = projectOptions.sourceFiles.indexOf(file);
         const sourceFiles = projectOptions.sourceFiles.filter(
           (f, idx) => idx >= fileIdx,
         );
-        console.log(file, sourceFiles);
+        const logger = server.config.logger;
+        logger.info(`[handleHotUpdate] ${file}`);
         const modulesToCompile = [];
         for (const sourceFile of sourceFiles) {
           const jsFile = sourceFile.replace(fsharpFileRegex, ".js");
