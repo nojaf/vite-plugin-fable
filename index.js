@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
@@ -17,6 +18,23 @@ const dotnetProcess = spawn(dotnetExe, ["--stdio"], {
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
 const fableLibrary = path.join(process.cwd(), "node_modules/fable-library");
 
+async function findFsProjFile(filePaths) {
+  const promises = filePaths.map(async (filePath) => {
+    let currentDir = path.dirname(filePath);
+    const files = await fs.readdir(currentDir);
+    return files
+      .filter((file) => file && file.toLocaleLowerCase().endsWith(".fsproj"))
+      .map((fsProjFile) => {
+        // Return the full path of the .fsproj file
+        return normalizePath(path.join(currentDir, fsProjFile));
+      });
+  });
+
+  const projectsInFolders = await Promise.all(promises);
+  const allProjFiles = projectsInFolders.flat();
+  return allProjFiles.length === 0 ? null : allProjFiles[0];
+}
+
 async function getProjectFile(project) {
   return await endpoint.send("fable/init", {
     project,
@@ -24,7 +42,7 @@ async function getProjectFile(project) {
   });
 }
 
-export default function fablePlugin({ fsproj }) {
+export default function fablePlugin(config = {}) {
   // A map of <js filePath, code>
   const compilableFiles = new Map();
   let projectOptions = null;
@@ -32,6 +50,21 @@ export default function fablePlugin({ fsproj }) {
   return {
     name: "vite-fable-plugin",
     buildStart: async function (options) {
+      // Use the first fsproj we can find.
+      let fsproj;
+      if (config && config.fsproj) {
+        fsproj = config.fsproj;
+      } else {
+        fsproj = await findFsProjFile(options.input);
+      }
+
+      if (!fsproj) {
+        const folders = options.input.map(path.dirname).join(",");
+        this.error(`[buildStart] No .fsproj file was found in ${folders}`);
+      } else {
+        this.info(`[buildStart] Entry fsproj ${fsproj}`);
+      }
+
       const projectResponse = await getProjectFile(fsproj);
       if (
         projectResponse.Case === "Success" &&
@@ -50,14 +83,24 @@ export default function fablePlugin({ fsproj }) {
           compilableFiles.set(jsFile, compiledFSharpFiles[file]);
         });
       } else {
-        console.log("Unexpected projectResponse", projectResponse);
+        this.warn({
+          message: "[buildStart] Unexpected projectResponse",
+          meta: {
+            projectResponse,
+          },
+        });
       }
     },
     resolveId: async function (source, importer, options) {
       // In this callback we want to resolve virtual javascript files and link them back together to the F# project.
       if (!source.endsWith(".js")) return null;
 
-      console.info("resolveId", source, importer);
+      this.info({
+        message: `[resolveId] ${source}`,
+        meta: {
+          importer,
+        },
+      });
       // A file from the fable_modules doesn't seem to respect the FileExtension from CliArgs
       let fsFile = source.endsWith(".fs.js")
         ? source.trimEnd().replace(".js", "")
@@ -74,11 +117,10 @@ export default function fablePlugin({ fsproj }) {
         fsFile = normalizePath(
           path.resolve(importerFolder, sourceRelativePath),
         );
-        console.log("Absolute path of resolved F# file", fsFile);
+        this.info(`[resolveId] Absolute path of resolved F# file: ${fsFile}`);
       }
 
       if (projectOptions.sourceFiles.includes(fsFile)) {
-        console.log("fsfile found", fsFile);
         return fsFile.replace(fsharpFileRegex, ".js");
       }
 
@@ -86,7 +128,7 @@ export default function fablePlugin({ fsproj }) {
     },
     load: async function (id) {
       if (!compilableFiles.has(id)) return null;
-      console.log("loading", id, compilableFiles.has(id));
+      this.info(`[load] ${id}`);
       return {
         code: compilableFiles.get(id),
       };
