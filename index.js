@@ -85,8 +85,8 @@ export default function fablePlugin({ fsproj }) {
       return null;
     },
     load: async function (id) {
-      console.log("loading", id, compilableFiles.has(id));
       if (!compilableFiles.has(id)) return null;
+      console.log("loading", id, compilableFiles.has(id));
       return {
         code: compilableFiles.get(id),
       };
