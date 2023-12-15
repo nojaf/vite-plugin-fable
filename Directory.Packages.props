@@ -1,0 +1,14 @@
+<Project>
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageVersion Include="StreamJsonRpc" Version="2.16.36" />
+        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-001" />
+        <!-- unit test project -->
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
+        <PackageVersion Include="Nerdbank.Streams" Version="2.10.72" />
+        <PackageVersion Include="NUnit" Version="4.0.1" />
+        <PackageVersion Include="NUnit3TestAdapter" Version="4.2.1" />
+    </ItemGroup>
+</Project>

@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
-
         <IsPackable>false</IsPackable>
         <GenerateProgramFile>false</GenerateProgramFile>
     </PropertyGroup>
@@ -11,27 +10,19 @@
         <Compile Include="..\Fable.Daemon\Types.fs">
             <Link>Types.fs</Link>
         </Compile>
-        <Compile Include="DebugTests.fs" />
+        <Compile Include="DebugTests.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
-        <PackageReference Include="Nerdbank.Streams" Version="2.10.72" />
-        <PackageReference Include="NUnit" Version="3.13.3"/>
-        <PackageReference Include="NUnit3TestAdapter" Version="4.2.1"/>
-        <PackageReference Include="NUnit.Analyzers" Version="3.3.0"/>
-        <PackageReference Include="coverlet.collector" Version="3.1.2"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="Nerdbank.Streams"/>
+        <PackageReference Include="NUnit"/>
+        <PackageReference Include="NUnit3TestAdapter"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="StreamJsonRpc" Version="2.16.36"/>
-        <Reference Include="../../fable/lib/fcs/nojaf/Debug/FSharp.Core.dll"/>
-        <Reference Include="../../fable/lib/fcs/nojaf/Debug/FSharp.Compiler.Service.dll"/>
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\Fable.Daemon\Fable.Daemon.fsproj" />
+        <ProjectReference Include="..\Fable.Daemon\Fable.Daemon.fsproj"/>
     </ItemGroup>
 
 </Project>

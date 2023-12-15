@@ -1,0 +1,14 @@
+<Project>
+    <PropertyGroup>
+        <UseLocalFableCompiler>false</UseLocalFableCompiler>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true' and '$(ProjectName)' != 'App'">
+        <ProjectReference Include="../../Fable/src/Fable.Compiler/Fable.Compiler.fsproj"/>
+        <Reference Include="../../fable/lib/fcs/FSharp.Core.dll"/>
+        <Reference Include="../../fable/lib/fcs/FSharp.Compiler.Service.dll"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'false' and '$(ProjectName)' != 'App'">
+        <PackageReference Include="StreamJsonRpc"/>
+        <PackageReference Include="Fable.Compiler"/>
+    </ItemGroup>
+</Project>
