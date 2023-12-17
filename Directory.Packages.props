@@ -1,10 +1,16 @@
 <Project>
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="StreamJsonRpc" Version="2.16.36" />
         <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-001" />
+        <!-- lock transitive dependencies -->
+        <PackageVersion Include="System.Collections" Version="4.3.0" />
+        <PackageVersion Include="System.Diagnostics.Debug" Version="4.3.0" />
+        <PackageVersion Include="System.IO.FileSystem.Primitives" Version="4.3.0" />
+        <PackageVersion Include="System.Runtime.Extensions" Version="4.3.1" />
         <!-- unit test project -->
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
         <PackageVersion Include="Nerdbank.Streams" Version="2.10.72" />

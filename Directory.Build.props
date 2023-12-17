@@ -1,5 +1,8 @@
 <Project>
     <PropertyGroup>
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+        <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <UseLocalFableCompiler>false</UseLocalFableCompiler>
     </PropertyGroup>
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true' and '$(ProjectName)' != 'App'">

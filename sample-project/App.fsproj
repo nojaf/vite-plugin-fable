@@ -4,6 +4,7 @@
         <TargetFramework>net8.0</TargetFramework>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+        <DisableImplicitFSharpCoreReference>false</DisableImplicitFSharpCoreReference>
     </PropertyGroup>
 
     <ItemGroup>
