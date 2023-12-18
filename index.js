@@ -7,11 +7,11 @@ import { normalizePath } from "vite";
 
 const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const dotnetExe = path.join(
+const fableDaemon = path.join(
   currentDir,
-  "Fable.Daemon\\bin\\Debug\\net8.0\\Fable.Daemon.exe",
+  "Fable.Daemon/bin/Debug/net8.0/Fable.Daemon.dll",
 );
-const dotnetProcess = spawn(dotnetExe, ["--stdio"], {
+const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
   shell: true,
   stdio: "pipe",
 });

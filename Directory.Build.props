@@ -3,15 +3,15 @@
         <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
         <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-        <UseLocalFableCompiler>false</UseLocalFableCompiler>
+        <UseLocalFableCompiler>true</UseLocalFableCompiler>
     </PropertyGroup>
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true' and '$(ProjectName)' != 'App'">
         <ProjectReference Include="../../Fable/src/Fable.Compiler/Fable.Compiler.fsproj"/>
-        <Reference Include="../../fable/lib/fcs/FSharp.Core.dll"/>
-        <Reference Include="../../fable/lib/fcs/FSharp.Compiler.Service.dll"/>
+        <ProjectReference Include="../../Fable/src/Fable.Transforms/Fable.Transforms.fsproj"/>
+        <Reference Include="../../Fable/lib/fcs/FSharp.Core.dll"/>
+        <Reference Include="../../Fable/lib/fcs/FSharp.Compiler.Service.dll"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'false' and '$(ProjectName)' != 'App'">
-        <PackageReference Include="StreamJsonRpc"/>
         <PackageReference Include="Fable.Compiler"/>
     </ItemGroup>
 </Project>
