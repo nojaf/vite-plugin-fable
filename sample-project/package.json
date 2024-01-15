@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "bunx --bun vite",
+    "build": "bunx --bun vite build",
+    "preview": "bunx --bun vite preview"
   },
   "dependencies": {
     "fable-library": "^1.1.1",
@@ -17,6 +17,7 @@
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "4.2.0",
-    "vite": "5.0.2"
+    "vite": "5.0.11",
+    "vite-plugin-inspect": "^0.8.1"
   }
 }

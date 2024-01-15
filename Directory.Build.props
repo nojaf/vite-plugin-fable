@@ -3,6 +3,8 @@
         <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
         <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <UseArtifactsOutput>true</UseArtifactsOutput>
+        <OtherFlags>$(OtherFlags) --test:GraphBasedChecking --test:ParallelOptimization --test:ParallelIlxGen --strict-indentation+</OtherFlags>
         <UseLocalFableCompiler>true</UseLocalFableCompiler>
     </PropertyGroup>
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true' and '$(ProjectName)' != 'App'">

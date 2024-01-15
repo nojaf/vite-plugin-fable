@@ -9,7 +9,7 @@ const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(
   currentDir,
-  "Fable.Daemon/bin/Debug/net8.0/Fable.Daemon.dll",
+  "artifacts/bin/Fable.Daemon/release_linux-x64/Fable.Daemon.dll",
 );
 const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
   shell: true,
@@ -39,6 +39,9 @@ async function getProjectFile(project) {
 export default function fablePlugin(config = {}) {
   // A map of <js filePath, code>
   const compilableFiles = new Map();
+  /** @typedef {object} json
+   * @property {string[]} sourceFiles
+   */
   let projectOptions = null;
   let fsproj;
 
@@ -70,14 +73,11 @@ export default function fablePlugin(config = {}) {
       ) {
         projectOptions = projectResponse.Fields[0];
         const compiledFSharpFiles = projectResponse.Fields[1];
-        // this.addWatchFile(normalizePath(fsproj));
-        // TODO: addWatchFile, see https://rollupjs.org/plugin-development/#this-addwatchfile
         // for proj file
         //console.log("projectOption.sourceFiles", projectOptions.sourceFiles, compiledFSharpFiles);
         projectOptions.sourceFiles.forEach((file) => {
-          // TODO: addWatchFile, see https://rollupjs.org/plugin-development/#this-addwatchfile
-          const jsFile = file.replace(".fs", ".js");
-          compilableFiles.set(jsFile, compiledFSharpFiles[file]);
+          this.addWatchFile(file);
+          compilableFiles.set(file, compiledFSharpFiles[file]);
         });
       } else {
         this.warn({
@@ -88,48 +88,84 @@ export default function fablePlugin(config = {}) {
         });
       }
     },
-    resolveId: async function (source, importer, options) {
-      // In this callback we want to resolve virtual javascript files and link them back together to the F# project.
-      if (!source.endsWith(".js")) return null;
+    transform(src, id) {
+      if (fsharpFileRegex.test(id)) {
+        this.info(`[transform] ${id}`);
+        if (compilableFiles.has(id)) {
+          return {
+            code: compilableFiles.get(id),
+            map: null,
+          };
+        } else {
+          this.warn(`[transform] ${id} is not part of compilableFiles`);
+        }
+      }
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        try {
+          const relativeUrl = req.originalUrl;
+          const baseUrl = "http://localhost:5137"; // Dummy base URL
+          const url = new URL(relativeUrl, baseUrl);
 
-      this.info({
-        message: `[resolveId] ${source}`,
-        meta: {
-          importer,
-        },
+          if (url.pathname.endsWith(".fs")) {
+            res.setHeader("Content-Type", "application/javascript");
+            server.transformRequest(req.originalUrl).then((transformResult) => {
+              res.end(transformResult.code);
+            });
+          } else {
+            next();
+          }
+        } catch (e) {
+          console.log(e);
+          next();
+        }
       });
-      // A file from the fable_modules doesn't seem to respect the FileExtension from CliArgs
-      let fsFile = source.endsWith(".fs.js")
-        ? source.trimEnd().replace(".js", "")
-        : source.replace(".js", ".fs");
-
-      // The incoming path might be a file requested from the dev-server.
-      // If this is the case, we need to map it to the absolute path first.
-      if (!projectOptions.sourceFiles.includes(fsFile) && importer) {
-        // Might be /Library.fs
-        const importerFolder = path.dirname(importer);
-        const sourceRelativePath = source.startsWith("/")
-          ? `.${fsFile}`
-          : fsFile;
-        fsFile = normalizePath(
-          path.resolve(importerFolder, sourceRelativePath),
-        );
-        this.info(`[resolveId] Absolute path of resolved F# file: ${fsFile}`);
-      }
-
-      if (projectOptions.sourceFiles.includes(fsFile)) {
-        return fsFile.replace(fsharpFileRegex, ".js");
-      }
-
-      return null;
     },
-    load: async function (id) {
-      if (!compilableFiles.has(id)) return null;
-      this.info(`[load] ${id}`);
-      return {
-        code: compilableFiles.get(id),
-      };
-    },
+    // resolveId: async function (source, importer, options) {
+    //   console.log(`resolveId ${source}`);
+    //   //   // In this callback we want to resolve virtual javascript files and link them back together to the F# project.
+    //   //   if (!source.endsWith(".js")) return null;
+    //   //
+    //   //   this.info({
+    //   //     message: `[resolveId] ${source}`,
+    //   //     meta: {
+    //   //       importer,
+    //   //     },
+    //   //   });
+    //   //   // A file from the fable_modules doesn't seem to respect the FileExtension from CliArgs
+    //   //   let fsFile = source.endsWith(".fs.js")
+    //   //     ? source.trimEnd().replace(".js", "")
+    //   //     : source.replace(".js", ".fs");
+    //   //
+    //   //   // The incoming path might be a file requested from the dev-server.
+    //   //   // If this is the case, we need to map it to the absolute path first.
+    //   //   if (!projectOptions.sourceFiles.includes(fsFile) && importer) {
+    //   //     // Might be /Library.fs
+    //   //     const importerFolder = path.dirname(importer);
+    //   //     const sourceRelativePath = source.startsWith("/")
+    //   //       ? `.${fsFile}`
+    //   //       : fsFile;
+    //   //     fsFile = normalizePath(
+    //   //       path.resolve(importerFolder, sourceRelativePath),
+    //   //     );
+    //   //     this.info(`[resolveId] Absolute path of resolved F# file: ${fsFile}`);
+    //   //   }
+    //   //
+    //   //   if (projectOptions.sourceFiles.includes(fsFile)) {
+    //   //     return fsFile.replace(fsharpFileRegex, ".js");
+    //   //   }
+    //   //
+    //   return null;
+    // },
+    // load: async function (id) {
+    //   this.info(`[load] ${id}`);
+    //   if (!compilableFiles.has(id)) return null;
+    //   this.info(`[load] ${id}`);
+    //   return {
+    //     code: compilableFiles.get(id),
+    //   };
+    // },
     watchChange: async function (id, change) {
       if (projectOptions) {
         if (id.endsWith(".fsproj")) {
@@ -143,12 +179,11 @@ export default function fablePlugin(config = {}) {
           const loadPromises = Object.keys(
             compilationResult.compiledFSharpFiles,
           ).map((fsFile) => {
-            const jsFile = fsFile.replace(fsharpFileRegex, ".js");
             compilableFiles.set(
-              jsFile,
+              fsFile,
               compilationResult.compiledFSharpFiles[fsFile],
             );
-            return this.load({ id: jsFile });
+            return this.load({ id: fsFile });
           });
           await Promise.all(loadPromises);
         }
@@ -164,11 +199,17 @@ export default function fablePlugin(config = {}) {
         logger.info(`[handleHotUpdate] ${file}`);
         const modulesToCompile = [];
         for (const sourceFile of sourceFiles) {
-          const jsFile = sourceFile.replace(fsharpFileRegex, ".js");
-          const module = server.moduleGraph.getModuleById(jsFile);
-          if (module) modulesToCompile.push(module);
+          const module = server.moduleGraph.getModuleById(sourceFile);
+          if (module) {
+            modulesToCompile.push(module);
+          } else {
+            logger.warn(`[handleHotUpdate] No module found for ${sourceFile}`);
+          }
         }
         if (modulesToCompile.length > 0) {
+          logger.info(
+            `[handleHotUpdate] about to send HMR update (${modulesToCompile.length}) to client.`,
+          );
           server.ws.send({
             type: "custom",
             event: "hot-update-dependents",

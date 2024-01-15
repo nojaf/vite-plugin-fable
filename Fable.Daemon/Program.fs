@@ -67,11 +67,13 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
                             DebugMode = false
                             OptimizeFSharpAst = false
                             Verbosity = Verbosity.Verbose
-                            FileExtension = ".js"
+                            // We keep using `.fs` for the compiled FSharp file, even though the contents will be JavaScript.
+                            FileExtension = ".fs"
                             TriggeredByDependency = false
                             NoReflection = false
                         }
                     RunProcess = None
+                    Verbosity = Verbosity.Normal
                 }
 
             let crackerOptions = CrackerOptions cliArgs
