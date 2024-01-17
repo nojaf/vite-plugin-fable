@@ -5,6 +5,11 @@ import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
 
+/*
+TODO: document known limitation, that `.fs` needs to be imported by Vite and cannot be served as `<script src="./File.fs"></script>` url.
+See  https://github.com/vitejs/vite/pull/9981 
+ */
+
 const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(
@@ -101,27 +106,27 @@ export default function fablePlugin(config = {}) {
         }
       }
     },
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        try {
-          const relativeUrl = req.originalUrl;
-          const baseUrl = "http://localhost:5137"; // Dummy base URL
-          const url = new URL(relativeUrl, baseUrl);
-
-          if (url.pathname.endsWith(".fs")) {
-            res.setHeader("Content-Type", "application/javascript");
-            server.transformRequest(req.originalUrl).then((transformResult) => {
-              res.end(transformResult.code);
-            });
-          } else {
-            next();
-          }
-        } catch (e) {
-          console.log(e);
-          next();
-        }
-      });
-    },
+    // configureServer(server) {
+    //   server.middlewares.use((req, res, next) => {
+    //     try {
+    //       const relativeUrl = req.originalUrl;
+    //       const baseUrl = "http://localhost:5137"; // Dummy base URL
+    //       const url = new URL(relativeUrl, baseUrl);
+    //
+    //       if (url.pathname.endsWith(".fs")) {
+    //         res.setHeader("Content-Type", "application/javascript");
+    //         server.transformRequest(req.originalUrl).then((transformResult) => {
+    //           res.end(transformResult.code);
+    //         });
+    //       } else {
+    //         next();
+    //       }
+    //     } catch (e) {
+    //       console.log(e);
+    //       next();
+    //     }
+    //   });
+    // },
     // resolveId: async function (source, importer, options) {
     //   console.log(`resolveId ${source}`);
     //   //   // In this callback we want to resolve virtual javascript files and link them back together to the F# project.
