@@ -14,7 +14,7 @@
         <!-- unit test project -->
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
         <PackageVersion Include="Nerdbank.Streams" Version="2.10.72" />
-        <PackageVersion Include="NUnit" Version="4.0.1" />
+        <PackageVersion Include="NUnit" Version="3.14.0" />
         <PackageVersion Include="NUnit3TestAdapter" Version="4.2.1" />
     </ItemGroup>
 </Project>

@@ -15,10 +15,10 @@ type ProjectChangedResult =
     | Success of projectOptions : FSharpProjectOptions * compiledFiles : Map<string, string>
     | Error of string
 
+[<RequireQualifiedAccess>]
 type FileChangedResult =
-    {
-        CompiledFSharpFiles : Map<string, string>
-    }
+    | Success of compiledFSharpFiles : Map<string, string>
+    | Error of string
 
 type PingPayload = { Msg : string }
 

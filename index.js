@@ -70,16 +70,21 @@ export default function fablePlugin(config = {}) {
       }
     },
     buildStart: async function (options) {
+      this.info(`[buildStart] Initial compile started of ${fsproj}`);
+      /** @typedef {object} json
+       * @property {string} Case
+       * @property {string[]} Fields
+       */
       const projectResponse = await getProjectFile(fsproj);
       if (
         projectResponse.Case === "Success" &&
         projectResponse.Fields &&
         projectResponse.Fields.length === 2
       ) {
+        this.info(`[buildStart] Initial compile completed of ${fsproj}`);
         projectOptions = projectResponse.Fields[0];
         const compiledFSharpFiles = projectResponse.Fields[1];
         // for proj file
-        //console.log("projectOption.sourceFiles", projectOptions.sourceFiles, compiledFSharpFiles);
         projectOptions.sourceFiles.forEach((file) => {
           this.addWatchFile(file);
           compilableFiles.set(file, compiledFSharpFiles[file]);
@@ -106,91 +111,48 @@ export default function fablePlugin(config = {}) {
         }
       }
     },
-    // configureServer(server) {
-    //   server.middlewares.use((req, res, next) => {
-    //     try {
-    //       const relativeUrl = req.originalUrl;
-    //       const baseUrl = "http://localhost:5137"; // Dummy base URL
-    //       const url = new URL(relativeUrl, baseUrl);
-    //
-    //       if (url.pathname.endsWith(".fs")) {
-    //         res.setHeader("Content-Type", "application/javascript");
-    //         server.transformRequest(req.originalUrl).then((transformResult) => {
-    //           res.end(transformResult.code);
-    //         });
-    //       } else {
-    //         next();
-    //       }
-    //     } catch (e) {
-    //       console.log(e);
-    //       next();
-    //     }
-    //   });
-    // },
-    // resolveId: async function (source, importer, options) {
-    //   console.log(`resolveId ${source}`);
-    //   //   // In this callback we want to resolve virtual javascript files and link them back together to the F# project.
-    //   //   if (!source.endsWith(".js")) return null;
-    //   //
-    //   //   this.info({
-    //   //     message: `[resolveId] ${source}`,
-    //   //     meta: {
-    //   //       importer,
-    //   //     },
-    //   //   });
-    //   //   // A file from the fable_modules doesn't seem to respect the FileExtension from CliArgs
-    //   //   let fsFile = source.endsWith(".fs.js")
-    //   //     ? source.trimEnd().replace(".js", "")
-    //   //     : source.replace(".js", ".fs");
-    //   //
-    //   //   // The incoming path might be a file requested from the dev-server.
-    //   //   // If this is the case, we need to map it to the absolute path first.
-    //   //   if (!projectOptions.sourceFiles.includes(fsFile) && importer) {
-    //   //     // Might be /Library.fs
-    //   //     const importerFolder = path.dirname(importer);
-    //   //     const sourceRelativePath = source.startsWith("/")
-    //   //       ? `.${fsFile}`
-    //   //       : fsFile;
-    //   //     fsFile = normalizePath(
-    //   //       path.resolve(importerFolder, sourceRelativePath),
-    //   //     );
-    //   //     this.info(`[resolveId] Absolute path of resolved F# file: ${fsFile}`);
-    //   //   }
-    //   //
-    //   //   if (projectOptions.sourceFiles.includes(fsFile)) {
-    //   //     return fsFile.replace(fsharpFileRegex, ".js");
-    //   //   }
-    //   //
-    //   return null;
-    // },
-    // load: async function (id) {
-    //   this.info(`[load] ${id}`);
-    //   if (!compilableFiles.has(id)) return null;
-    //   this.info(`[load] ${id}`);
-    //   return {
-    //     code: compilableFiles.get(id),
-    //   };
-    // },
     watchChange: async function (id, change) {
       if (projectOptions) {
         if (id.endsWith(".fsproj")) {
           this.info("[watchChange] Should reload project");
         } else if (fsharpFileRegex.test(id)) {
           this.info(`[watchChange] ${id} changed`);
-          const compilationResult = await endpoint.send("fable/compile", {
-            fileName: id,
-          });
-          this.info(`[watchChange] ${id} compiled, ${compilationResult}`);
-          const loadPromises = Object.keys(
-            compilationResult.compiledFSharpFiles,
-          ).map((fsFile) => {
-            compilableFiles.set(
-              fsFile,
-              compilationResult.compiledFSharpFiles[fsFile],
-            );
-            return this.load({ id: fsFile });
-          });
-          await Promise.all(loadPromises);
+          try {
+            /** @typedef {object} json
+             * @property {string} Case
+             * @property {string[]} Fields
+             */
+            const compilationResult = await endpoint.send("fable/compile", {
+              fileName: id,
+            });
+            if (
+              compilationResult.Case === "Success" &&
+              compilationResult.Fields &&
+              compilationResult.Fields.length > 0
+            ) {
+              this.info(`[watchChange] ${id} compiled`);
+              const compiledFSharpFiles = compilationResult.Fields[0];
+              const loadPromises = Object.keys(compiledFSharpFiles).map(
+                (fsFile) => {
+                  compilableFiles.set(fsFile, compiledFSharpFiles[fsFile]);
+                  return this.load({ id: fsFile });
+                },
+              );
+              return await Promise.all(loadPromises);
+            } else {
+              this.warn({
+                message: `[watchChange] compilation of ${id} failed`,
+                meta: {
+                  error: compilationResult.Fields[0],
+                },
+              });
+            }
+          } catch (e) {
+            this.error({
+              message: `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully`,
+              cause: e,
+            });
+          }
         }
       }
     },

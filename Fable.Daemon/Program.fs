@@ -89,7 +89,7 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
             let dummyPathResolver =
                 { new PathResolver with
                     member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
-                    member _.GetOrAddDeduplicateTargetDir (_importDir, _addTargetDir) = ""
+                    member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
                 }
 
             let! initialCompiledFiles =
@@ -115,6 +115,30 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
             return Error ex.Message
     }
 
+let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string, string>, string>> =
+    async {
+        try
+            let fileName = Path.normalizePath fileName
+
+            let sourceReader =
+                Fable.Compiler.File.MakeSourceReader (
+                    Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
+                )
+                |> snd
+
+            let! compiledFiles =
+                Fable.Compiler.CodeServices.compileFileToJavaScript
+                    sourceReader
+                    model.Checker
+                    model.PathResolver
+                    model.CliArgs
+                    model.CrackerResponse
+                    fileName
+
+            return Ok compiledFiles
+        with ex ->
+            return Error ex.Message
+    }
 
 type FableServer(sender : Stream, reader : Stream) as this =
     let jsonMessageFormatter = new JsonMessageFormatter ()
@@ -160,24 +184,12 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     // TODO: this probably means the file was changed as well.
                     | CompileFile (fileName, replyChannel) ->
-                        let fileName = Path.normalizePath fileName
+                        let! result = tryCompileFile model fileName
 
-                        let sourceReader =
-                            Fable.Compiler.File.MakeSourceReader (
-                                Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
-                            )
-                            |> snd
+                        match result with
+                        | Error error -> replyChannel.Reply (FileChangedResult.Error error)
+                        | Ok compiledFiles -> replyChannel.Reply (FileChangedResult.Success compiledFiles)
 
-                        let! compiledFiles =
-                            Fable.Compiler.CodeServices.compileFileToJavaScript
-                                sourceReader
-                                model.Checker
-                                model.PathResolver
-                                model.CliArgs
-                                model.CrackerResponse
-                                fileName
-
-                        replyChannel.Reply { CompiledFSharpFiles = compiledFiles }
                         return! loop model
                     | Disconnect -> return ()
                 }
@@ -185,8 +197,15 @@ type FableServer(sender : Stream, reader : Stream) as this =
             loop Unchecked.defaultof<Model>
         )
 
+    // log or something.
+    let subscription = mailbox.Error.Subscribe (fun evt -> ())
+
     interface IDisposable with
-        member _.Dispose () = ()
+        member _.Dispose () =
+            if not (isNull subscription) then
+                subscription.Dispose ()
+
+            ()
 
     /// returns a hot task that resolves when the stream has terminated
     member this.WaitForClose = rpc.Completion
