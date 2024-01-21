@@ -1,90 +1,97 @@
-@import url('https://fonts.googleapis.com/css2?family=Mohave:wght@400;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Mohave:wght@400;600&display=swap");
 
 :root {
-    --nojaf-50: #fefee8;
-    --nojaf-100: #feffc2;
-    --nojaf-200: #fffe87;
-    --nojaf-300: #fff643;
-    --nojaf-400: #ffe710;
-    --nojaf-500: #efce03;
-    --nojaf-600: #cea100;
-    --nojaf-700: #a47304;
-    --nojaf-800: #885a0b;
-    --nojaf-900: #734910;
-    --nojaf-950: #432605;
-    --fable-50: #edf9ff;
-    --fable-100: #d7f1ff;
-    --fable-200: #b9e8ff;
-    --fable-300: #88dbff;
-    --fable-400: #50c5ff;
-    --fable-500: #28a7ff;
-    --fable-600: #1e90ff;
-    --fable-700: #0a71eb;
-    --fable-800: #0f5abe;
-    --fable-900: #134e95;
-    --fable-950: #11305a;
+  --nojaf-50: #fefee8;
+  --nojaf-100: #feffc2;
+  --nojaf-200: #fffe87;
+  --nojaf-300: #fff643;
+  --nojaf-400: #ffe710;
+  --nojaf-500: #efce03;
+  --nojaf-600: #cea100;
+  --nojaf-700: #a47304;
+  --nojaf-800: #885a0b;
+  --nojaf-900: #734910;
+  --nojaf-950: #432605;
+  --fable-50: #edf9ff;
+  --fable-100: #d7f1ff;
+  --fable-200: #b9e8ff;
+  --fable-300: #88dbff;
+  --fable-400: #50c5ff;
+  --fable-500: #28a7ff;
+  --fable-600: #1e90ff;
+  --fable-700: #0a71eb;
+  --fable-800: #0f5abe;
+  --fable-900: #134e95;
+  --fable-950: #11305a;
 
-    --mohave: Mohave, sans-serif;
-    --header-background: var(--fable-50);
-    --aside-background: var(--fable-50);
-    --page-menu-background-color: var(--fable-50);
-    --header-brand-text-transform: uppercase;
-    --heading-font-family: var(--mohave);
+  --mohave: Mohave, sans-serif;
+  --header-background: var(--fable-50);
+  --aside-background: var(--fable-50);
+  --page-menu-background-color: var(--fable-50);
+  --header-brand-text-transform: uppercase;
+  --heading-font-family: var(--mohave);
+}
+
+[data-theme="dark"] {
+  --header-background: var(--fable-900);
+  --aside-background: var(--fable-900);
+  --page-menu-background-color: var(--fable-900);
+  --heading-color: white;
 }
 
 header .start strong {
-    font-family: var(--heading-font-family);
-    font-size: var(--font-400);
-    font-weight: 600;
+  font-family: var(--heading-font-family);
+  font-size: var(--font-400);
+  font-weight: 600;
 }
 
 #content {
-    padding-bottom: var(--spacing-400);
+  padding-bottom: var(--spacing-400);
 }
 
 #content p:last-child:has(a) {
-    margin-top: 0;
-    display: flex;
+  margin-top: 0;
+  display: flex;
 
-    > a:only-child {
-        margin-top: var(--spacing-400);
-        margin-inline: auto;
-        padding: var(--spacing-50) var(--spacing-200);
-        background-color: var(--fable-600);
-        text-decoration: none;
-        color: white;
-        transition: 300ms all;
-        font-family: var(--mohave);
+  > a:only-child {
+    margin-top: var(--spacing-400);
+    margin-inline: auto;
+    padding: var(--spacing-50) var(--spacing-200);
+    background-color: var(--fable-600);
+    text-decoration: none;
+    color: white;
+    transition: 300ms all;
+    font-family: var(--mohave);
 
-        &:hover {
-            background-color: var(--fable-700);
-        }
-
-        &:active {
-            background-color: var(--fable-800);
-        }
+    &:hover {
+      background-color: var(--fable-700);
     }
+
+    &:active {
+      background-color: var(--fable-800);
+    }
+  }
 }
 
 .mermaid {
-    margin-block: var(--spacing-500);
-    display: flex;
-    justify-content: center;
+  margin-block: var(--spacing-500);
+  display: flex;
+  justify-content: center;
 
-    & .messageText {
-        fill: var(--fable-400) !important;
-    }
+  & .messageText {
+    fill: var(--fable-400) !important;
+  }
 
-    & .messageLine0 {
-        stroke: var(--fable-400) !important;
-    }
+  & .messageLine0 {
+    stroke: var(--fable-400) !important;
+  }
 
-    & text.actor > tspan {
-        fill: white !important;
-    }
+  & text.actor > tspan {
+    fill: white !important;
+  }
 
-    & .activation0 {
-        fill: var(--fable-200) !important;
-        stroke: var(--fable-300) !important;
-    }
+  & .activation0 {
+    fill: var(--fable-200) !important;
+    stroke: var(--fable-300) !important;
+  }
 }
