@@ -4,11 +4,11 @@ categoryindex: 1
 category: docs
 ---
 
-# vite-fable-plugin
+# vite-plugin-fable
 
 <style>img { max-width: 400px; display: block; margin-inline: auto; }</style>
 
-![vite-fable-plugin logo](./img/logo.png)
+![vite-plugin-fable logo](./img/logo.png)
 
 ## Introduction
 

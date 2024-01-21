@@ -8,13 +8,13 @@ category: docs
 
 When working on this plugin, there are a lot of moving pieces involved:
 
-- vite-fable-plugin
+- vite-plugin-fable
 - Fable.Compiler
 - the F# fork Fable uses
 
 All these pieces of technologies need to be in tune before any of this can work.
 
-## vite-fable-plugin
+## vite-plugin-fable
 
 The combination of a thin JavaScript wrapped that communicates with a dotnet process via JSON-RPC.
 

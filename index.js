@@ -51,7 +51,7 @@ export default function fablePlugin(config = {}) {
   let fsproj;
 
   return {
-    name: "vite-fable-plugin",
+    name: "vite-plugin-fable",
     configResolved: async function (resolvedConfig) {
       const configDir = path.dirname(resolvedConfig.configFile);
 
