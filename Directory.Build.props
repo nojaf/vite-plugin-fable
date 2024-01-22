@@ -16,4 +16,9 @@
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'false' and '$(ProjectName)' != 'App'">
         <PackageReference Include="Fable.Compiler"/>
     </ItemGroup>
+    <PropertyGroup>
+        <RepositoryUrl>https://github.com/nojaf/vite-plugin-fable</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/nojaf/vite-plugin-fable</PackageProjectUrl>
+        <FsDocsLicenseLink>https://github.com/nojaf/vite-plugin-fable/blob/main/LICENSE</FsDocsLicenseLink>
+    </PropertyGroup>
 </Project>
