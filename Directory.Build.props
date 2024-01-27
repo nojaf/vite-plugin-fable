@@ -5,15 +5,15 @@
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <UseArtifactsOutput>true</UseArtifactsOutput>
         <OtherFlags>$(OtherFlags) --test:GraphBasedChecking --test:ParallelOptimization --test:ParallelIlxGen --strict-indentation+</OtherFlags>
-        <UseLocalFableCompiler>true</UseLocalFableCompiler>
+        <UseLocalFableCompiler>false</UseLocalFableCompiler>
     </PropertyGroup>
-    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true' and '$(ProjectName)' != 'App'">
+    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true'">
         <ProjectReference Include="../../Fable/src/Fable.Compiler/Fable.Compiler.fsproj"/>
         <ProjectReference Include="../../Fable/src/Fable.Transforms/Fable.Transforms.fsproj"/>
         <Reference Include="../../Fable/lib/fcs/FSharp.Core.dll"/>
         <Reference Include="../../Fable/lib/fcs/FSharp.Compiler.Service.dll"/>
     </ItemGroup>
-    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'false' and '$(ProjectName)' != 'App'">
+    <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'false'">
         <PackageReference Include="Fable.Compiler"/>
     </ItemGroup>
     <PropertyGroup>

@@ -11,7 +11,7 @@ open Fable.Daemon
 [<Test>]
 let DebugTest () =
     task {
-        Directory.SetCurrentDirectory ("/home/nojaf/projects/telplin/tool/client")
+        Directory.SetCurrentDirectory ("/home/nojaf/projects/vite-plugin-fable/sample-project")
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
         let daemon = new Program.FableServer (serverStream, serverStream)
@@ -19,24 +19,18 @@ let DebugTest () =
         client.StartListening ()
 
         let! response =
-            daemon.Init (
-                // {
-                //     Project = @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\App.fsproj"
-                //     FableLibrary =
-                //         @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\node_modules\fable-library"
-                // }
+            daemon.Init
                 {
-                    Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
-                    FableLibrary = "/home/nojaf/projects/telplin/tool/client/node_modules/fable-library"
+                    Project = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
+                    FableLibrary = "/home/nojaf/projects/vite-plugin-fable/sample-project/node_modules/fable-library"
                 }
-            )
 
-        let! fileChangedResponse =
-            daemon.CompileFile (
-                {
-                    FileName = "/home/nojaf/projects/telplin/tool/client/App.fs"
-                }
-            )
+        // let! fileChangedResponse =
+        //     daemon.CompileFile (
+        //         {
+        //             FileName = "/home/nojaf/projects/vite-plugin-fable/sample-project/Math.fs"
+        //         }
+        //     )
         // let! response =
         //     client.InvokeAsync<ProjectChangedResult> (
         //         "fable/init",
@@ -47,7 +41,7 @@ let DebugTest () =
         //         }
         //     )
 
-        printfn "fileChangedResponse: %A" fileChangedResponse
+        printfn "response: %A" response
         client.Dispose ()
         (daemon :> IDisposable).Dispose ()
 
