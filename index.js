@@ -5,11 +5,6 @@ import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
 
-/*
-TODO: document known limitation, that `.fs` needs to be imported by Vite and cannot be served as `<script src="./File.fs"></script>` url.
-See  https://github.com/vitejs/vite/pull/9981 
- */
-
 const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(

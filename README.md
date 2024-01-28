@@ -8,3 +8,7 @@ Alright, the `tl;dr` is that I don't like the current way of how you can use [Fa
 I'm referring to the steps in the [get started with Vite](https://fable.io/docs/getting-started/javascript.html#browser), I don't like it and have an alternate take on it.
 
 More thoughts on this can be read from the [documentation](#).
+
+## Current status
+
+Not available on npm. You can read the code, that's is it for now.

@@ -18,7 +18,8 @@
     </ItemGroup>
     <PropertyGroup>
         <RepositoryUrl>https://github.com/nojaf/vite-plugin-fable</RepositoryUrl>
-        <PackageProjectUrl>https://github.com/nojaf/vite-plugin-fable</PackageProjectUrl>
+        <PackageProjectUrl>https://nojaf.com/vite-plugin-fable/</PackageProjectUrl>
         <FsDocsLicenseLink>https://github.com/nojaf/vite-plugin-fable/blob/main/LICENSE</FsDocsLicenseLink>
+        <Authors>Florian Verdonck</Authors>
     </PropertyGroup>
 </Project>
