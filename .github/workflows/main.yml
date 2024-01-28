@@ -31,8 +31,8 @@ jobs:
       - name: Install node_modules
         run: bun install --frozen-lockfile
 
-      - name: Build daemoo
-        run : ./publish.sh
+#      - name: Build daemon
+#        run : ./publish.sh
 
       - name: Build docs
         run: dotnet fsdocs build --noapidocs --projects "$(pwd)/Fable.Daemon/Fable.Daemon.fsproj"
