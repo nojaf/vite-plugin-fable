@@ -17,6 +17,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: oven-sh/setup-bun@v1
+
       - name: Setup dotnet
         uses: actions/setup-dotnet@v4
 
@@ -25,6 +27,12 @@ jobs:
 
       - name: Restore solution
         run: dotnet restore
+
+      - name: Install node_modules
+        run: bun install --frozen-lockfile
+
+      - name: Build daemoo
+        run : ./publish.sh
 
       - name: Build docs
         run: dotnet fsdocs build --noapidocs --projects "$(pwd)/Fable.Daemon/Fable.Daemon.fsproj"
