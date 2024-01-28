@@ -1,7 +1,5 @@
 # Vite plugin for Fable
 
-<style>img { max-width: 400px; display: block; margin-inline: auto; }</style>
-
 ![vite-plugin-fable logo](https://nojaf.com/vite-plugin-fable/img/logo.png)
 
 Hi there, this is an experiment, it somewhat works on my machine and please don't expect anything from this.
