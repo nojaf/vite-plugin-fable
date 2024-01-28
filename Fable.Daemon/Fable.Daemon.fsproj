@@ -6,11 +6,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!--    <Compile Include="CoolCatCracking.fs" />-->
+        <Compile Include="CoolCatCracking.fs"/>
         <Compile Include="Types.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>
-    
+
     <ItemGroup>
         <PackageReference Include="StreamJsonRpc"/>
     </ItemGroup>

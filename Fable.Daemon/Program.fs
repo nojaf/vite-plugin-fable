@@ -77,7 +77,10 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
                 }
 
             let crackerOptions = CrackerOptions cliArgs
-            let crackerResponse = getFullProjectOpts crackerOptions
+
+            let crackerResponse =
+                getFullProjectOpts CoolCatCracking.coolCatResolver crackerOptions
+
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
             let sourceReader =

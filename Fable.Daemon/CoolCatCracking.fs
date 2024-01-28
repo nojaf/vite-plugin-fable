@@ -3,104 +3,130 @@
 open System
 open System.Diagnostics
 open System.IO
+open System.Reflection
 open System.Text.Json
-open FSharp.Compiler.CodeAnalysis
 open Fable
-open Fable.Compiler.Util
+open Fable.Compiler.ProjectCracker
 
-let fsharpFiles = set [| ".fs" ; ".fsi" ; ".fsx" |]
+/// Add additional Fable arguments
+let private mkOptions (compilerArgs : string array) : string array =
+    [|
+        yield! compilerArgs
+        yield "--define:FABLE_COMPILER"
+        yield "--define:FABLE_COMPILER_4"
+        yield "--define:FABLE_COMPILER_JAVASCRIPT"
+    |]
 
-let isFSharpFile (file : string) =
-    Seq.exists (fun (ext : string) -> file.EndsWith ext) fsharpFiles
+type FullPath = string
 
-let mkOptions (fsproj : string) (compilerArgs : string array) =
-    let projectDir = Path.GetDirectoryName fsproj
+let private dotnet_msbuild (fsproj : FullPath) (args : string) : Async<string> =
+    backgroundTask {
+        let psi = ProcessStartInfo "dotnet"
+        let pwd = Assembly.GetEntryAssembly().Location |> Path.GetDirectoryName
+        psi.WorkingDirectory <- pwd
+        psi.Arguments <- $"msbuild \"%s{fsproj}\" %s{args}"
+        psi.RedirectStandardOutput <- true
+        psi.RedirectStandardError <- true
+        psi.UseShellExecute <- false
+        use ps = new Process ()
+        ps.StartInfo <- psi
+        ps.Start () |> ignore
+        let output = ps.StandardOutput.ReadToEnd ()
+        let error = ps.StandardError.ReadToEnd ()
+        do! ps.WaitForExitAsync ()
 
-    let sourceFiles =
-        compilerArgs
-        |> Array.choose (fun (line : string) ->
-            let filePath = Path.Combine (projectDir, line)
+        if not (String.IsNullOrWhiteSpace error) then
+            failwithf $"In %s{pwd}:\ndotnet %s{args} failed with\n%s{error}"
 
-            if isFSharpFile line && File.Exists filePath && not (filePath.Contains "obj") then
-                Some (Path.normalizeFullPath filePath)
-            else
-                None
-        )
-
-    let otherOptions =
-        [|
-            yield! compilerArgs |> Array.filter (fun line -> not (isFSharpFile line))
-            yield "--define:FABLE_COMPILER"
-            yield "--define:FABLE_COMPILER_4"
-            yield "--define:FABLE_COMPILER_JAVASCRIPT"
-        |]
-
-    {
-        ProjectFileName = "Project"
-        ProjectId = None
-        SourceFiles = sourceFiles
-        OtherOptions = otherOptions
-        ReferencedProjects = [||]
-        IsIncompleteTypeCheckEnvironment = false
-        UseScriptResolutionRules = false
-        LoadTime = DateTime.Now
-        UnresolvedReferences = None
-        OriginalLoadReferences = []
-        Stamp = None
+        return output.Trim ()
     }
+    |> Async.AwaitTask
 
-let dotnet pwd args =
-    let psi = ProcessStartInfo "dotnet"
-    psi.WorkingDirectory <- pwd
-    psi.Arguments <- args
-    psi.RedirectStandardOutput <- true
-    psi.UseShellExecute <- false
-    // needed to escape the global.json circle of influence
-    psi.EnvironmentVariables.Remove "MSBuildExtensionsPath"
-    psi.EnvironmentVariables.Remove "MSBuildSDKsPath"
-    use ps = new Process ()
-    ps.StartInfo <- psi
-    ps.Start () |> ignore
-    let output = ps.StandardOutput.ReadToEnd ()
-    ps.WaitForExit ()
-    output.Trim ()
-
-let mkOptionsFromDesignTimeBuild (fsproj : string) (additionalArguments : string) =
-    if not (File.Exists fsproj) then
-        invalidArg (nameof fsproj) $"\"%s{fsproj}\" does not exist."
-
-    // Move fsproj to temp folder
-    let pwd = Path.Combine (Path.GetTempPath (), Guid.NewGuid().ToString "N")
-
-    try
-        let dir = DirectoryInfo pwd
-        dir.Create ()
-
-        let version = dotnet pwd "--version"
-
-        if version <> "8.0.100-rc.2.23502.2" then
-            failwith $"Expected the SDK to be 8.0.100-rc.2.23502.2 in %s{pwd}"
-
-        let tmpFsproj = Path.Combine (pwd, Path.GetFileName fsproj)
-        File.Copy (fsproj, tmpFsproj)
-
+let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (additionalArguments : string) : Async<ProjectOptionsResponse> =
+    async {
         let targets =
             "Restore,ResolveAssemblyReferencesDesignTime,ResolveProjectReferencesDesignTime,ResolvePackageDependenciesDesignTime,FindReferenceAssembliesForReferences,_GenerateCompileDependencyCache,_ComputeNonExistentFileProperty,BeforeBuild,BeforeCompile,CoreCompile"
 
-        let json =
-            dotnet
-                pwd
-                $"msbuild /t:%s{targets} /p:DesignTimeBuild=True /p:SkipCompilerExecution=True /p:ProvideCommandLineArgs=True --getItem:FscCommandLineArgs %s{additionalArguments}"
+        let! targetFrameworkJson =
+            dotnet_msbuild fsproj.FullName "--getProperty:TargetFrameworks --getProperty:TargetFramework"
 
+        let targetFramework =
+            let tf, tfs =
+                JsonDocument.Parse targetFrameworkJson
+                |> fun json -> json.RootElement.GetProperty "Properties"
+                |> fun properties ->
+                    properties.GetProperty("TargetFramework").GetString (),
+                    properties.GetProperty("TargetFrameworks").GetString ()
+
+            if not (String.IsNullOrWhiteSpace tf) then
+                tf
+            else
+                tfs.Split ';' |> Array.head
+
+        let version = DateTime.UtcNow.Ticks % 3600L
+
+        let properties =
+            [
+                "/p:Telplin=True"
+                $"/p:TargetFramework=%s{targetFramework}"
+                "/p:DesignTimeBuild=True"
+                "/p:SkipCompilerExecution=True"
+                "/p:ProvideCommandLineArgs=True"
+                // See https://github.com/NuGet/Home/issues/13046
+                "/p:RestoreUseStaticGraphEvaluation=False"
+                // Pass in a fake version to avoid skipping the CoreCompile target
+                $"/p:Version=%i{version}"
+            ]
+            |> List.filter (String.IsNullOrWhiteSpace >> not)
+            |> String.concat " "
+
+        let arguments =
+            $"/t:%s{targets} %s{properties} --getItem:FscCommandLineArgs %s{additionalArguments} --getItem:ProjectReference --getProperty:OutputType"
+
+        let! json = dotnet_msbuild fsproj.FullName arguments
         let jsonDocument = JsonDocument.Parse json
+        let items = jsonDocument.RootElement.GetProperty "Items"
+        let properties = jsonDocument.RootElement.GetProperty "Properties"
 
         let options =
-            jsonDocument.RootElement
-            |> fun root -> root.GetProperty("Items").GetProperty("FscCommandLineArgs").EnumerateArray ()
+            items.GetProperty("FscCommandLineArgs").EnumerateArray ()
             |> Seq.map (fun arg -> arg.GetProperty("Identity").GetString ())
             |> Seq.toArray
 
-        mkOptions fsproj options
-    finally
-        if Directory.Exists pwd then
-            Directory.Delete (pwd, true)
+        if Array.isEmpty options then
+            return
+                failwithf
+                    $"Design time build for %s{fsproj.FullName} failed. CoreCompile was most likely skipped. `dotnet clean` might help here."
+        else
+
+        let options = mkOptions options
+
+        let projectReferences =
+            items.GetProperty("ProjectReference").EnumerateArray ()
+            |> Seq.map (fun arg -> arg.GetProperty("FullPath").GetString ())
+            |> Seq.toArray
+
+        let outputType = properties.GetProperty("OutputType").GetString ()
+
+        return
+            {
+                ProjectOptions = options
+                ProjectReferences = projectReferences
+                OutputType = Some outputType
+                TargetFramework = Some targetFramework
+            }
+    }
+
+let coolCatResolver : ProjectCrackerResolver =
+    { new ProjectCrackerResolver with
+        member x.GetProjectOptionsFromProjectFile (isMain, options, projectFile) =
+            let fsproj = FileInfo projectFile
+
+            if not fsproj.Exists then
+                invalidArg (nameof fsproj) $"\"%s{fsproj.FullName}\" does not exist."
+
+            // Bad I know...
+            let result = mkOptionsFromDesignTimeBuildAux fsproj "" |> Async.RunSynchronously
+
+            result
+    }
