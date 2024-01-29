@@ -6,7 +6,7 @@ category: docs
 
 # vite-plugin-fable
 
-<style>img { max-width: 400px; display: block; margin-inline: auto; }</style>
+<style>img { max-width: minmax(100%, 400px); display: block; margin-inline: auto; }</style>
 
 ![vite-plugin-fable logo](./img/logo.png)
 
