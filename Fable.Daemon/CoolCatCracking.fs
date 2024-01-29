@@ -57,29 +57,59 @@ let private dotnet_msbuild (fsproj : FullPath) (args : string) : Async<string> =
     }
     |> Async.AwaitTask
 
-let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (additionalArguments : string) : Async<ProjectOptionsResponse> =
+let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOptions) : Async<ProjectOptionsResponse> =
     async {
         let! targetFrameworkJson =
-            dotnet_msbuild fsproj.FullName "--getProperty:TargetFrameworks --getProperty:TargetFramework"
+            let configuration =
+                if String.IsNullOrWhiteSpace options.Configuration then
+                    ""
+                else
+                    $"/p:Configuration=%s{options.Configuration}"
 
-        let targetFramework =
-            let tf, tfs =
+            dotnet_msbuild
+                fsproj.FullName
+                $"{configuration} --getProperty:TargetFrameworks --getProperty:TargetFramework --getProperty:DefineConstants"
+
+        let defineConstants, targetFramework =
+            let properties =
                 JsonDocument.Parse targetFrameworkJson
                 |> fun json -> json.RootElement.GetProperty "Properties"
-                |> fun properties ->
-                    properties.GetProperty("TargetFramework").GetString (),
-                    properties.GetProperty("TargetFrameworks").GetString ()
+
+            let defineConstants =
+                properties.GetProperty("DefineConstants").GetString().Split ';'
+                |> Array.filter (fun c -> c <> "DEBUG" || c <> "RELEASE")
+
+            let tf, tfs =
+                properties.GetProperty("TargetFramework").GetString (),
+                properties.GetProperty("TargetFrameworks").GetString ()
 
             if not (String.IsNullOrWhiteSpace tf) then
-                tf
+                defineConstants, tf
             else
-                tfs.Split ';' |> Array.head
+                defineConstants, tfs.Split ';' |> Array.head
+
+        let defines =
+            [
+                "TRACE"
+                if not (String.IsNullOrWhiteSpace options.Configuration) then
+                    options.Configuration.ToUpper ()
+                yield! defineConstants
+                yield! options.FableOptions.Define
+            ]
+
+            |> List.map (fun s -> s.Trim ())
+            // Escaped `;`
+            |> String.concat "%3B"
 
         let version = DateTime.UtcNow.Ticks % 3600L
 
         let properties =
             [
-                "/p:Telplin=True"
+                "/p:VitePlugin=True"
+                if not (String.IsNullOrWhiteSpace options.Configuration) then
+                    $"/p:Configuration=%s{options.Configuration}"
+                if not (String.IsNullOrWhiteSpace defines) then
+                    $"/p:DefineConstants=\"%s{defines}\""
                 $"/p:TargetFramework=%s{targetFramework}"
                 "/p:DesignTimeBuild=True"
                 "/p:SkipCompilerExecution=True"
@@ -90,7 +120,7 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (additionalArguments : s
                 "/p:RestoreLockedMode=false"
                 "/p:RestorePackagesWithLockFile=false"
                 // We trick NuGet into believing there is no lock file create, if it does exist it will try and create it.
-                " /p:NuGetLockFilePath=Telplin.lock"
+                " /p:NuGetLockFilePath=VitePlugin.lock"
                 // Pass in a fake version to avoid skipping the CoreCompile target
                 $"/p:Version=%i{version}"
             ]
@@ -101,7 +131,7 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (additionalArguments : s
             "ResolveAssemblyReferencesDesignTime,ResolveProjectReferencesDesignTime,ResolvePackageDependenciesDesignTime,FindReferenceAssembliesForReferences,_GenerateCompileDependencyCache,_ComputeNonExistentFileProperty,BeforeBuild,BeforeCompile,CoreCompile"
 
         let arguments =
-            $"/restore /t:%s{targets} %s{properties} --getItem:FscCommandLineArgs %s{additionalArguments} --getItem:ProjectReference --getProperty:OutputType"
+            $"/restore /t:%s{targets} %s{properties}  -warnAsMessage:NU1608 --getItem:FscCommandLineArgs --getItem:ProjectReference --getProperty:OutputType"
 
         let! json = dotnet_msbuild fsproj.FullName arguments
         let jsonDocument = JsonDocument.Parse json
@@ -123,7 +153,11 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (additionalArguments : s
 
         let projectReferences =
             items.GetProperty("ProjectReference").EnumerateArray ()
-            |> Seq.map (fun arg -> arg.GetProperty("FullPath").GetString ())
+            |> Seq.map (fun arg ->
+                let relativePath = arg.GetProperty("Identity").GetString ()
+
+                Path.Combine (fsproj.DirectoryName, relativePath) |> Path.GetFullPath
+            )
             |> Seq.toArray
 
         let outputType = properties.GetProperty("OutputType").GetString ()
@@ -146,7 +180,8 @@ let coolCatResolver : ProjectCrackerResolver =
                 invalidArg (nameof fsproj) $"\"%s{fsproj.FullName}\" does not exist."
 
             // Bad I know...
-            let result = mkOptionsFromDesignTimeBuildAux fsproj "" |> Async.RunSynchronously
+            let result =
+                mkOptionsFromDesignTimeBuildAux fsproj options |> Async.RunSynchronously
 
             result
     }
