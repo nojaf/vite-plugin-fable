@@ -1,13 +1,23 @@
 {
   "name": "vite-plugin-fable",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "bunx --bun prettier ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write"
+    "format": "bunx --bun prettier ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write",
+    "postinstall": "node install.js"
   },
+  "files":[
+    "index.js",
+    "install.js",
+    "Directory.Build.props",
+    "Directory.Packages.props",
+    "Fable.Daemon/*.fsproj",
+    "Fable.Daemon/*.fs",
+    "Fable.Daemon/*.fsi"
+  ],
   "keywords": [],
   "author": "nojaf",
   "license": "MIT",
