@@ -5,6 +5,10 @@
 open Fable.Compiler.ProjectCracker
 open Fable.Daemon.CoolCatCracking
 
+fsi.AddPrinter (fun (x : ProjectOptionsResponse) ->
+    $"ProjectOptionsResponse: %i{x.ProjectOptions.Length} options, %i{x.ProjectReferences.Length} references, %s{x.TargetFramework.Value}, %s{x.OutputType.Value}"
+)
+
 let fsproj = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
 
 let result =
