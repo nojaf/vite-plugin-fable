@@ -23,7 +23,7 @@ switch (platform) {
 }
 
 console.log("About to publish Fable.Daemon");
-const command = `dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release -r ${rid} -p:PublishReadyToRun=true`;
+const command = `dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release -r ${rid} -p:PublishReadyToRun=true -o ./bin`;
 
 async function run() {
   try {
