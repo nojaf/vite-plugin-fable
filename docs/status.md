@@ -17,8 +17,7 @@ This project does support Fable plugins, but compatibility with other projects i
 
 ## What is published?
 
-As of now, there's nothing officially released. You won't find anything on npm just yet.
-But if you're eager to tinker with this project, you'd need the local versions of both my Fable fork and this repository.
+A first package was pushed to [npm](https://www.npmjs.com/package/vite-plugin-fable). This was merely to reserve the package name.
 
 ## Own aspirations
 

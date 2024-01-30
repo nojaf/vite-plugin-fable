@@ -1,5 +1,7 @@
 # Vite plugin for Fable
 
+![NPM Version](https://img.shields.io/npm/v/vite-plugin-fable)
+
 ![vite-plugin-fable logo](https://nojaf.com/vite-plugin-fable/img/logo.png)
 
 Hi there, this is an experiment, it somewhat works on my machine and please don't expect anything from this.
@@ -13,4 +15,5 @@ More thoughts on this can be read from the [documentation](https://nojaf.com/vit
 
 ## Current status
 
-Not available on npm. You can read the code, that's is it for now.
+A first package was pushed to npm. This was merely to reserve the package name.  
+You can read the code, that's is it for now.
