@@ -12,6 +12,7 @@
   "files":[
     "index.js",
     "install.js",
+    "cracking.fsx",
     "Directory.Build.props",
     "Directory.Packages.props",
     "Fable.Daemon/*.fsproj",
