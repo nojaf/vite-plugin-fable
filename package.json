@@ -1,15 +1,16 @@
 {
   "name": "vite-plugin-fable",
   "version": "0.0.1",
+  "homepage": "https://nojaf.com/vite-plugin-fable/",
   "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "bunx --bun prettier ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write",
+    "format": "bunx --bun prettier ./package.json ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write",
     "postinstall": "node install.js"
   },
-  "files":[
+  "files": [
     "index.js",
     "install.js",
     "cracking.fsx",
@@ -21,10 +22,11 @@
   ],
   "keywords": [],
   "author": "nojaf",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "fundinding": "https://nojaf.com/",
   "dependencies": {
     "ts-lsp-client": "^1.0.1",
-    "vite": "5.0.12"
+    "vite": "^5.0.12"
   },
   "devDependencies": {
     "prettier": "3.2.4"
