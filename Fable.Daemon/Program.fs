@@ -76,7 +76,7 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
                     Verbosity = Verbosity.Normal
                 }
 
-            let crackerOptions = CrackerOptions cliArgs
+            let crackerOptions = CrackerOptions (cliArgs, false)
 
             let crackerResponse =
                 getFullProjectOpts CoolCatCracking.coolCatResolver crackerOptions

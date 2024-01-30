@@ -5,7 +5,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="StreamJsonRpc" Version="2.16.36" />
-        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-002" />
+        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-004" />
         <!-- lock transitive dependencies -->
         <PackageVersion Include="System.Collections" Version="4.3.0" />
         <PackageVersion Include="System.Diagnostics.Debug" Version="4.3.0" />

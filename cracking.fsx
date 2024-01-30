@@ -49,7 +49,7 @@ let cliArgs : CliArgs =
         Verbosity = Fable.Verbosity.Verbose
     }
 
-let options : CrackerOptions = CrackerOptions cliArgs
+let options : CrackerOptions = CrackerOptions (cliArgs, false)
 
 #time "on"
 
