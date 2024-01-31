@@ -6,6 +6,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="Thoth/Decode.fs" />
+        <Compile Include="Thoth/Encode.fs" />
         <Compile Include="CoolCatCracking.fs"/>
         <Compile Include="Types.fs"/>
         <Compile Include="Program.fs"/>
@@ -13,5 +15,6 @@
 
     <ItemGroup>
         <PackageReference Include="StreamJsonRpc"/>
+        <PackageReference Include="Thoth.Json.Core" />
     </ItemGroup>
 </Project>
