@@ -1,5 +1,7 @@
-#r "nuget: Fable.Compiler, 4.0.0-alpha-004"
-#load "./Fable.Daemon/CoolCatCracking.fs"
+#I "./bin"
+#r "Fable.AST"
+#r "Fable.Compiler"
+#r "Fable.Daemon"
 
 open System.IO
 open Fable.Compiler.Util
