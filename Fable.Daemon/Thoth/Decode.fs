@@ -35,6 +35,7 @@ module Decode =
 
             member _.isIntegralValue jsonValue =
                 jsonValue.ValueKind = JsonValueKind.Number
+                && not (fst (jsonValue.TryGetDouble ()))
 
             member _.asString jsonValue = jsonValue.GetString ()
             member _.asBoolean jsonValue = jsonValue.GetBoolean ()
@@ -49,7 +50,7 @@ module Decode =
             member _.getProperties jsonValue =
                 jsonValue.EnumerateObject () |> Seq.map (fun prop -> prop.Name)
 
-            member _.getProperty (fieldName : string, jsonValue : JsonElement) = jsonValue.GetProperty (fieldName)
+            member _.getProperty (fieldName : string, jsonValue : JsonElement) = jsonValue.GetProperty fieldName
 
             member _.anyToString jsonValue =
                 // Serializing the JsonElement to a string

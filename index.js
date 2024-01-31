@@ -64,18 +64,18 @@ export default function fablePlugin(config = {}) {
     buildStart: async function (options) {
       this.info(`[buildStart] Initial compile started of ${fsproj}`);
       /** @typedef {object} json
-       * @property {string} Case
-       * @property {string[]} Fields
+       * @property {string} case
+       * @property {string[]} fields
        */
       const projectResponse = await getProjectFile(fsproj);
       if (
-        projectResponse.Case === "Success" &&
-        projectResponse.Fields &&
-        projectResponse.Fields.length === 2
+        projectResponse.case === "Success" &&
+        projectResponse.fields &&
+        projectResponse.fields.length === 2
       ) {
         this.info(`[buildStart] Initial compile completed of ${fsproj}`);
-        projectOptions = projectResponse.Fields[0];
-        const compiledFSharpFiles = projectResponse.Fields[1];
+        projectOptions = projectResponse.fields[0];
+        const compiledFSharpFiles = projectResponse.fields[1];
         // for proj file
         projectOptions.sourceFiles.forEach((file) => {
           this.addWatchFile(file);
@@ -111,19 +111,19 @@ export default function fablePlugin(config = {}) {
           this.info(`[watchChange] ${id} changed`);
           try {
             /** @typedef {object} json
-             * @property {string} Case
-             * @property {string[]} Fields
+             * @property {string} case
+             * @property {string[]} fields
              */
             const compilationResult = await endpoint.send("fable/compile", {
               fileName: id,
             });
             if (
-              compilationResult.Case === "Success" &&
-              compilationResult.Fields &&
-              compilationResult.Fields.length > 0
+              compilationResult.case === "Success" &&
+              compilationResult.fields &&
+              compilationResult.fields.length > 0
             ) {
               this.info(`[watchChange] ${id} compiled`);
-              const compiledFSharpFiles = compilationResult.Fields[0];
+              const compiledFSharpFiles = compilationResult.fields[0];
               const loadPromises = Object.keys(compiledFSharpFiles).map(
                 (fsFile) => {
                   compilableFiles.set(fsFile, compiledFSharpFiles[fsFile]);
@@ -135,7 +135,7 @@ export default function fablePlugin(config = {}) {
               this.warn({
                 message: `[watchChange] compilation of ${id} failed`,
                 meta: {
-                  error: compilationResult.Fields[0],
+                  error: compilationResult.fields[0],
                 },
               });
             }

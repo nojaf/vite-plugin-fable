@@ -1,9 +1,10 @@
 ﻿open System
 open System.IO
 open System.Threading.Tasks
-open Fable
-open Newtonsoft.Json.Serialization
+open System.Text.Json
+open System.Text.Json.Serialization
 open StreamJsonRpc
+open Fable
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.SourceCodeServices
 open Fable.Compiler.ProjectCracker
@@ -144,11 +145,21 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string
     }
 
 type FableServer(sender : Stream, reader : Stream) as this =
-    let jsonMessageFormatter = new JsonMessageFormatter ()
+    let jsonMessageFormatter = new SystemTextJsonFormatter ()
 
     do
-        jsonMessageFormatter.JsonSerializer.ContractResolver <-
-            DefaultContractResolver (NamingStrategy = CamelCaseNamingStrategy ())
+        jsonMessageFormatter.JsonSerializerOptions <-
+            let options =
+                JsonSerializerOptions (PropertyNamingPolicy = JsonNamingPolicy.CamelCase)
+
+            let jsonFSharpOptions =
+                JsonFSharpOptions
+                    .Default()
+                    .WithUnionTagName("case")
+                    .WithUnionFieldsName ("fields")
+
+            options.Converters.Add (JsonUnionConverter (jsonFSharpOptions))
+            options
 
     let handler =
         new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)

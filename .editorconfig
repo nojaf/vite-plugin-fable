@@ -1,5 +1,8 @@
 root = true
 
+[*.{fsproj,props}]
+indent_size = 2
+
 [*.{fs,fsi,fsx}]
 fsharp_space_before_uppercase_invocation = true
 fsharp_space_before_member = true
