@@ -72,7 +72,7 @@ async function getProjectFile(project) {
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
 export default function fablePlugin(config = {}) {
-  // A map of <js filePath, code>
+  /* @type {Map<string, string>} */
   const compilableFiles = new Map();
   /** @type {FSharpProjectOptions|null} */
   let projectOptions = null;
