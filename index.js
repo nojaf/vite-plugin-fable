@@ -5,6 +5,17 @@ import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
 
+/**
+ * @typedef {Object} FSharpDiscriminatedUnion
+ * @property {string} case - The name of the case (will have same casing as in type definition).
+ * @property {any[]} fields - The fields associated with the case.
+ */
+
+/**
+ * @typedef {Object} FSharpProjectOptions
+ * @property {string[]} sourceFiles
+ */
+
 const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(currentDir, "bin/Fable.Daemon.dll");
@@ -26,21 +37,47 @@ async function findFsProjFile(configDir) {
   return fsprojFiles.length > 0 ? fsprojFiles[0] : null;
 }
 
+/**
+ * Retrieves the project file and its compiled files.
+ * @param {string} project - The name or path of the project.
+ * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>}>} A promise that resolves to an object containing the project options and compiled files.
+ * @throws {Error} If the result from the endpoint is not a success case.
+ */
 async function getProjectFile(project) {
-  return await endpoint.send("fable/init", {
+  /** @type {FSharpDiscriminatedUnion} */
+  const result = await endpoint.send("fable/init", {
     project,
     fableLibrary,
   });
+
+  if (result.case === "Success") {
+    return {
+      projectOptions: result.fields[0],
+      compiledFiles: result.fields[1],
+    };
+  } else {
+    throw new Error(result.fields[0] || "Unknown error occurred");
+  }
 }
 
+/**
+ * @typedef {Object} PluginOptions
+ * @property {string} [fsproj] - The main fsproj to load
+ */
+
+/**
+ * @function
+ * @param {PluginOptions} config - The options for configuring the plugin.
+ * @description Initializes and returns a Vite plugin for to process the incoming F# project.
+ * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
+ */
 export default function fablePlugin(config = {}) {
   // A map of <js filePath, code>
   const compilableFiles = new Map();
-  /** @typedef {object} json
-   * @property {string[]} sourceFiles
-   */
+  /** @type {FSharpProjectOptions|null} */
   let projectOptions = null;
-  let fsproj;
+  /** @type {string|null} */
+  let fsproj = null;
 
   return {
     name: "vite-plugin-fable",
@@ -62,30 +99,22 @@ export default function fablePlugin(config = {}) {
       }
     },
     buildStart: async function (options) {
-      this.info(`[buildStart] Initial compile started of ${fsproj}`);
-      /** @typedef {object} json
-       * @property {string} case
-       * @property {string[]} fields
-       */
-      const projectResponse = await getProjectFile(fsproj);
-      if (
-        projectResponse.case === "Success" &&
-        projectResponse.fields &&
-        projectResponse.fields.length === 2
-      ) {
+      try {
+        this.info(`[buildStart] Initial compile started of ${fsproj}`);
+        const projectResponse = await getProjectFile(fsproj);
         this.info(`[buildStart] Initial compile completed of ${fsproj}`);
-        projectOptions = projectResponse.fields[0];
-        const compiledFSharpFiles = projectResponse.fields[1];
+        projectOptions = projectResponse.projectOptions;
+        const compiledFSharpFiles = projectResponse.compiledFiles;
         // for proj file
         projectOptions.sourceFiles.forEach((file) => {
           this.addWatchFile(file);
           compilableFiles.set(file, compiledFSharpFiles[file]);
         });
-      } else {
+      } catch (e) {
         this.warn({
           message: "[buildStart] Unexpected projectResponse",
           meta: {
-            projectResponse,
+            error: e,
           },
         });
       }
