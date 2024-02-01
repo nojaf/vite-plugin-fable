@@ -1,6 +1,6 @@
 # Vite plugin for Fable
 
-![NPM Version](https://img.shields.io/npm/v/vite-plugin-fable)
+[![NPM Version](https://img.shields.io/npm/v/vite-plugin-fable)](https://www.npmjs.com/package/vite-plugin-fable)
 
 ![vite-plugin-fable logo](https://nojaf.com/vite-plugin-fable/img/logo.png)
 
