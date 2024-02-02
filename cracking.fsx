@@ -12,7 +12,7 @@ fsi.AddPrinter (fun (x : ProjectOptionsResponse) ->
     $"ProjectOptionsResponse: %i{x.ProjectOptions.Length} options, %i{x.ProjectReferences.Length} references, %s{x.TargetFramework.Value}, %s{x.OutputType.Value}"
 )
 
-let fsproj = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
+let fsproj = Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
 
 let cliArgs : CliArgs =
     {
