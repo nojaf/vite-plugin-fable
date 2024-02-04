@@ -26,7 +26,7 @@ let private mkOptions (projectFile : FileInfo) (compilerArgs : string array) : s
 
 type FullPath = string
 
-let private dotnet_msbuild (fsproj : FullPath) (args : string) : Async<string> =
+let dotnet_msbuild (fsproj : FullPath) (args : string) : Async<string> =
     backgroundTask {
         let psi = ProcessStartInfo "dotnet"
         let pwd = Assembly.GetEntryAssembly().Location |> Path.GetDirectoryName
