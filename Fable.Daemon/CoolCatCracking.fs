@@ -5,12 +5,10 @@ open System.Diagnostics
 open System.IO
 open System.Reflection
 open System.Collections.Concurrent
-open System.Collections.Concurrent
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
 open Fable
 open Fable.Compiler.ProjectCracker
-
 
 let fsharpFiles = set [| ".fs" ; ".fsi" ; ".fsx" |]
 
@@ -434,7 +432,7 @@ type CoolCatResolver() =
                     | Caching.InvalidCacheReason.DependentFileCountDoesNotMatch _
                     | Caching.InvalidCacheReason.DependentFileHashMismatch _ ->
                         try
-                            File.Delete (currentCacheKey.CacheFile.FullName)
+                            File.Delete currentCacheKey.CacheFile.FullName
                         finally
                             ()
                     | Caching.InvalidCacheReason.FileDoesNotExist _ -> ()
