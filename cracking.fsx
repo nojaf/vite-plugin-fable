@@ -50,11 +50,11 @@ let cliArgs : CliArgs =
     }
 
 let options : CrackerOptions = CrackerOptions (cliArgs, false)
+let resolver : ProjectCrackerResolver = CoolCatResolver ()
 
 #time "on"
 
-let result =
-    coolCatResolver.GetProjectOptionsFromProjectFile (true, options, fsproj)
+let result = resolver.GetProjectOptionsFromProjectFile (true, options, fsproj)
 
 #time "off"
 

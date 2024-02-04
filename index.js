@@ -178,7 +178,11 @@ export default function fablePlugin(config = {}) {
       }
     },
     handleHotUpdate: function ({ file, server, modules }) {
-      if (fsharpFileRegex.test(file)) {
+      if (
+        projectOptions &&
+        projectOptions.sourceFiles &&
+        fsharpFileRegex.test(file)
+      ) {
         const fileIdx = projectOptions.sourceFiles.indexOf(file);
         const sourceFiles = projectOptions.sourceFiles.filter(
           (f, idx) => idx >= fileIdx,

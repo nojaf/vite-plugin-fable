@@ -9,13 +9,52 @@ open System
 open System.IO
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
-open Fable
 open Fable.Compiler.Util
 open Fable.Compiler.ProjectCracker
 open Fable.Daemon.CoolCatCracking
 
 [<Literal>]
 let CacheFileNameSuffix = ".vite-plugin-fable-cache.json"
+
+type Hash = string
+
+type CacheFileContent =
+    {
+        MainFsproj : Hash
+        DependentFiles : Map<FullPath, Hash>
+        Defines : Set<string>
+        CompilerArguments : string array
+    }
+
+let cacheDecoder =
+    Decode.object (fun get ->
+        let mainFsproj = get.Required.Field "mainFsproj" Decode.string
+
+        let dependentFiles =
+            get.Required.Field "dependentFiles" (Decode.keyValuePairs Decode.string)
+            |> Map.ofList
+
+        let defines =
+            get.Required.Field "defines" (Decode.array Decode.string) |> Set.ofArray
+
+        let compilerArguments =
+            get.Required.Field "compilerArguments" (Decode.array Decode.string)
+
+        {
+            MainFsproj = mainFsproj
+            DependentFiles = dependentFiles
+            Defines = defines
+            CompilerArguments = compilerArguments
+        }
+    )
+
+/// Calculates the SHA256 hash of the given file.
+type FileInfo with
+    member this.Hash : string =
+        use sha256 = System.Security.Cryptography.SHA256.Create ()
+        use stream = File.OpenRead this.FullName
+        let hash = sha256.ComputeHash stream
+        BitConverter.ToString(hash).Replace ("-", "")
 
 type CacheKey =
     {
@@ -28,12 +67,61 @@ type CacheKey =
         /// This typically is the
         DependentFiles : FileInfo list
         /// Contains both the user defined configurations (via Vite plugin options)
-        Defines : string list
+        Defines : Set<string>
         /// Configuration
         Configuration : string
     }
 
-let mkFileHash (f : FileInfo) : string = "foo"
+    /// Verify is the cached key for the project exists and is still valid.
+    member x.Exists () : bool =
+        if not x.CacheFile.Exists then
+            false
+        else
+
+        let cacheContent = File.ReadAllText x.CacheFile.FullName
+
+        match Decode.fromString cacheDecoder cacheContent with
+        | Error _error ->
+            // Maybe log in the future...
+            false
+        | Ok cacheContent ->
+
+        if x.MainFsproj.Hash <> cacheContent.MainFsproj then
+            false
+        elif x.Defines <> cacheContent.Defines then
+            false
+        elif x.DependentFiles.Length <> cacheContent.DependentFiles.Count then
+            false
+        elif
+            // Verify if each dependent files was found in the cached data and if the hashes still match.
+            x.DependentFiles
+            |> List.exists (fun df ->
+                match Map.tryFind df.FullName cacheContent.DependentFiles with
+                | None -> false
+                | Some v -> df.Hash = v
+            )
+        then
+            false
+        else
+            true
+
+    /// Save the compiler arguments results from the design time build to the intermediate folder.
+    member x.Write (compilerArguments : string array) =
+        let json =
+            let dependentFiles =
+                x.DependentFiles
+                |> List.map (fun df -> df.FullName, Encode.string df.Hash)
+                |> Encode.object
+
+            Encode.object
+                [
+                    "mainFsproj", Encode.string x.MainFsproj.Hash
+                    "dependentFiles", dependentFiles
+                    "defines", x.Defines |> Seq.map Encode.string |> Seq.toArray |> Encode.array
+                    "compilerArguments", compilerArguments |> Array.map Encode.string |> Encode.array
+                ]
+
+        File.WriteAllText (x.CacheFile.FullName, Encode.toString json)
 
 let cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Decoder<CacheKey> =
     Decode.object (fun get ->
@@ -70,27 +158,26 @@ let cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Decoder<Cac
             MainFsproj = fsproj
             CacheFile = cacheFile
             DependentFiles = [ yield fsproj ; yield! paths ; yield! nugetGProps ]
-            Defines = options.FableOptions.Define
+            Defines = Set.ofList options.FableOptions.Define
             Configuration = options.Configuration
         }
     )
 
-let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) =
+/// Generate the caching key information for the design time build of the incoming fsproj file.
+let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Result<CacheKey, string>> =
     async {
         if not fsproj.Exists then
-            raise (ArgumentException ($"%s{fsproj.FullName} does not exists", nameof (fsproj)))
+            raise (ArgumentException ($"%s{fsproj.FullName} does not exists", nameof fsproj))
 
         if String.IsNullOrWhiteSpace options.Configuration then
             raise (
-                ArgumentException ("options.Configuration cannot be null or whitespace", nameof (options.Configuration))
+                ArgumentException ("options.Configuration cannot be null or whitespace", nameof options.Configuration)
             )
 
         let! json =
             dotnet_msbuild fsproj.FullName "--getProperty:MSBuildAllProjects --getProperty:BaseIntermediateOutputPath"
 
-        match Decode.fromString (cacheKeyDecoder options fsproj) json with
-        | Error error -> return failwith $"%s{error}"
-        | Ok p -> printf "%A" p
+        return Decode.fromString (cacheKeyDecoder options fsproj) json
     }
 
 // Execute
@@ -134,7 +221,11 @@ let cliArgs : CliArgs =
 
 let options : CrackerOptions = CrackerOptions (cliArgs, false)
 
-mkProjectCacheKey options fsproj |> Async.RunSynchronously
+let cacheKey = mkProjectCacheKey options fsproj |> Async.RunSynchronously
+
+match cacheKey with
+| Error _ -> ()
+| Ok cacheKey -> cacheKey.Write [| "foo" ; "bar" |]
 
 (*
 
