@@ -56,7 +56,7 @@ let tryCompileProject
                     PrecompiledLib = None
                     PrintAst = false
                     FableLibraryPath = Some payload.FableLibrary
-                    Configuration = "Release"
+                    Configuration = payload.Configuration
                     NoRestore = true
                     NoCache = true
                     NoParallelTypeCheck = false
@@ -161,7 +161,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     .WithUnionTagName("case")
                     .WithUnionFieldsName ("fields")
 
-            options.Converters.Add (JsonUnionConverter (jsonFSharpOptions))
+            options.Converters.Add (JsonUnionConverter jsonFSharpOptions)
             options
 
     let handler =

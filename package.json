@@ -8,7 +8,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "bunx --bun prettier ./package.json ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write",
-    "postinstall": "node install.js"
+    "postinstall": "dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release --ucr -p:PublishReadyToRun=true -o ./bin"
   },
   "files": [
     "index.js",

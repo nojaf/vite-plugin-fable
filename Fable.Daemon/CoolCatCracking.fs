@@ -259,6 +259,7 @@ module Caching =
 let private identityDecoder =
     Decode.object (fun get -> get.Required.Field "Identity" Decode.string)
 
+/// Perform a design time build using the `dotnet msbuild` cli invocation.
 let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOptions) : Async<ProjectOptionsResponse> =
     async {
         let! targetFrameworkJson =
