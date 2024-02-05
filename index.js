@@ -24,7 +24,6 @@ const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
   stdio: "pipe",
 });
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
-const fableLibrary = path.join(process.cwd(), "node_modules/fable-library");
 
 async function findFsProjFile(configDir) {
   const files = await fs.readdir(configDir);
@@ -45,6 +44,9 @@ async function findFsProjFile(configDir) {
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function getProjectFile(configuration, project) {
+  const fableLibraryArray = await import.meta.resolve("fable-library/Array");
+  const fableLibrary = path.dirname(fableLibraryArray);
+
   /** @type {FSharpDiscriminatedUnion} */
   const result = await endpoint.send("fable/init", {
     configuration,
