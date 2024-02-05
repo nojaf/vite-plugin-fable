@@ -39,13 +39,15 @@ async function findFsProjFile(configDir) {
 
 /**
  * Retrieves the project file and its compiled files.
+ * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
  * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
-async function getProjectFile(project) {
+async function getProjectFile(configuration, project) {
   /** @type {FSharpDiscriminatedUnion} */
   const result = await endpoint.send("fable/init", {
+    configuration,
     project,
     fableLibrary,
   });
@@ -78,10 +80,18 @@ export default function fablePlugin(config = {}) {
   let projectOptions = null;
   /** @type {string|null} */
   let fsproj = null;
+  /** @type {string} */
+  let configuration = "Debug";
 
   return {
     name: "vite-plugin-fable",
     configResolved: async function (resolvedConfig) {
+      configuration =
+        resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
+      resolvedConfig.logger.info(
+        `[configResolved] Configuration: ${configuration}`,
+      );
+
       const configDir = path.dirname(resolvedConfig.configFile);
 
       if (config && config.fsproj) {
@@ -101,7 +111,7 @@ export default function fablePlugin(config = {}) {
     buildStart: async function (options) {
       try {
         this.info(`[buildStart] Initial compile started of ${fsproj}`);
-        const projectResponse = await getProjectFile(fsproj);
+        const projectResponse = await getProjectFile(configuration, fsproj);
         this.info(`[buildStart] Initial compile completed of ${fsproj}`);
         projectOptions = projectResponse.projectOptions;
         const compiledFSharpFiles = projectResponse.compiledFiles;
@@ -178,7 +188,11 @@ export default function fablePlugin(config = {}) {
       }
     },
     handleHotUpdate: function ({ file, server, modules }) {
-      if (fsharpFileRegex.test(file)) {
+      if (
+        projectOptions &&
+        projectOptions.sourceFiles &&
+        fsharpFileRegex.test(file)
+      ) {
         const fileIdx = projectOptions.sourceFiles.indexOf(file);
         const sourceFiles = projectOptions.sourceFiles.filter(
           (f, idx) => idx >= fileIdx,

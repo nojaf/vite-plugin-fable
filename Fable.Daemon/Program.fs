@@ -18,6 +18,7 @@ type Msg =
 
 type Model =
     {
+        ProjectCrackerResolver : ProjectCrackerResolver
         CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
@@ -38,7 +39,11 @@ type CompiledProjectData =
         PathResolver : PathResolver
     }
 
-let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledProjectData, string>> =
+let tryCompileProject
+    (crackerResolver : ProjectCrackerResolver)
+    (payload : ProjectChangedPayload)
+    : Async<Result<CompiledProjectData, string>>
+    =
     async {
         try
             let cliArgs : CliArgs =
@@ -51,7 +56,7 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
                     PrecompiledLib = None
                     PrintAst = false
                     FableLibraryPath = Some payload.FableLibrary
-                    Configuration = "Release"
+                    Configuration = payload.Configuration
                     NoRestore = true
                     NoCache = true
                     NoParallelTypeCheck = false
@@ -78,9 +83,7 @@ let tryCompileProject (payload : ProjectChangedPayload) : Async<Result<CompiledP
                 }
 
             let crackerOptions = CrackerOptions (cliArgs, false)
-
-            let crackerResponse =
-                getFullProjectOpts CoolCatCracking.coolCatResolver crackerOptions
+            let crackerResponse = getFullProjectOpts crackerResolver crackerOptions
 
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
@@ -158,7 +161,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     .WithUnionTagName("case")
                     .WithUnionFieldsName ("fields")
 
-            options.Converters.Add (JsonUnionConverter (jsonFSharpOptions))
+            options.Converters.Add (JsonUnionConverter jsonFSharpOptions)
             options
 
     let handler =
@@ -175,7 +178,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let! result = tryCompileProject payload
+                        let! result = tryCompileProject model.ProjectCrackerResolver payload
 
                         match result with
                         | Error error ->
@@ -188,7 +191,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                             return!
                                 loop
-                                    {
+                                    { model with
                                         CliArgs = result.CliArgs
                                         Checker = result.Checker
                                         CrackerResponse = result.CrackerResponse
@@ -208,7 +211,15 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     | Disconnect -> return ()
                 }
 
-            loop Unchecked.defaultof<Model>
+            loop
+                {
+                    ProjectCrackerResolver = CoolCatCracking.CoolCatResolver ()
+                    CliArgs = Unchecked.defaultof<CliArgs>
+                    Checker = Unchecked.defaultof<InteractiveChecker>
+                    CrackerResponse = Unchecked.defaultof<CrackerResponse>
+                    SourceReader = Unchecked.defaultof<SourceReader>
+                    PathResolver = Unchecked.defaultof<PathResolver>
+                }
         )
 
     // log or something.

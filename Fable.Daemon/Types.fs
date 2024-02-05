@@ -4,6 +4,8 @@ open FSharp.Compiler.CodeAnalysis
 
 type ProjectChangedPayload =
     {
+        /// Release or Debug
+        Configuration : string
         /// Absolute path of fsproj
         Project : string
         /// Absolute path of fable-library. Typically found in the npm modules
