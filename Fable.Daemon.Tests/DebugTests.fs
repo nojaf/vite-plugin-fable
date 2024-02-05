@@ -11,7 +11,7 @@ open Fable.Daemon
 [<Test>]
 let DebugTest () =
     task {
-        Directory.SetCurrentDirectory ("/home/nojaf/projects/vite-plugin-fable/sample-project")
+        Directory.SetCurrentDirectory ("/home/nojaf/projects/telplin/tool/client")
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
         let daemon = new Program.FableServer (serverStream, serverStream)
@@ -21,8 +21,9 @@ let DebugTest () =
         let! response =
             daemon.Init
                 {
-                    Project = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
-                    FableLibrary = "/home/nojaf/projects/vite-plugin-fable/sample-project/node_modules/fable-library"
+                    Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
+                    FableLibrary = "/home/nojaf/projects/telplin/tool/client//node_modules/fable-library"
+                    Configuration = "Release"
                 }
 
         // let! fileChangedResponse =

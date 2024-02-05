@@ -123,8 +123,8 @@ export default function fablePlugin(config = {}) {
           compilableFiles.set(file, compiledFSharpFiles[file]);
         });
       } catch (e) {
-        this.warn({
-          message: "[buildStart] Unexpected projectResponse",
+        this.error({
+          message: `[buildStart] Unexpected projectResponse: ${e}`,
           meta: {
             error: e,
           },

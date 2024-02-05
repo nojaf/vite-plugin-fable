@@ -312,8 +312,8 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOption
             |> String.concat "%3B"
 
         // When CoreCompile does not need a rebuild, MSBuild will skip that target and thus will not populate the FscCommandLineArgs items.
-        // To overcome this we want to force a design time build, using a random version property helps prevent a cache hit.
-        let version = DateTime.UtcNow.Ticks % 3600L
+        // To overcome this we want to force a design time build, using the NonExistentFile property helps prevent a cache hit.
+        let nonExistentFile = Path.Combine ("__NonExistentSubDir__", "__NonExistentFile__")
 
         let properties =
             [
@@ -334,8 +334,8 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOption
                 "/p:RestorePackagesWithLockFile=false"
                 // We trick NuGet into believing there is no lock file create, if it does exist it will try and create it.
                 " /p:NuGetLockFilePath=VitePlugin.lock"
-                // Pass in a fake version to avoid skipping the CoreCompile target
-                $"/p:Version=%i{version}"
+                // Avoid skipping the CoreCompile target via this property.
+                $"/p:NonExistentFile=\"%s{nonExistentFile}\""
             ]
             |> List.filter (String.IsNullOrWhiteSpace >> not)
             |> String.concat " "
@@ -377,7 +377,7 @@ let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOption
         if Array.isEmpty options then
             return
                 failwithf
-                    $"Design time build for %s{fsproj.FullName} failed. CoreCompile was most likely skipped. `dotnet clean` might help here."
+                    $"Design time build for %s{fsproj.FullName} failed. CoreCompile was most likely skipped. `dotnet clean` might help here.\ndotnet msbuild %s{fsproj.FullName} %s{arguments}"
         else
 
         let options = mkOptions fsproj options
