@@ -37,16 +37,30 @@ async function findFsProjFile(configDir) {
 }
 
 /**
+ @returns {Promise<string>}
+*/
+async function getFableLibrary() {
+  const fableLibraryInOwnNodeModules = path.join(
+    currentDir,
+    "node_modules/fable-library",
+  );
+  try {
+    await fs.access(fableLibraryInOwnNodeModules, fs.constants.F_OK);
+    return normalizePath(fableLibraryInOwnNodeModules);
+  } catch (e) {
+    return normalizePath(path.join(currentDir, "../fable-library"));
+  }
+}
+
+/**
  * Retrieves the project file and its compiled files.
+ * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
  * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
-async function getProjectFile(configuration, project) {
-  const fableLibraryArray = await import.meta.resolve("fable-library/Array");
-  const fableLibrary = path.dirname(fableLibraryArray);
-
+async function getProjectFile(fableLibrary, configuration, project) {
   /** @type {FSharpDiscriminatedUnion} */
   const result = await endpoint.send("fable/init", {
     configuration,
@@ -113,7 +127,13 @@ export default function fablePlugin(config = {}) {
     buildStart: async function (options) {
       try {
         this.info(`[buildStart] Initial compile started of ${fsproj}`);
-        const projectResponse = await getProjectFile(configuration, fsproj);
+        const fableLibrary = await getFableLibrary();
+        this.info(`[buildStart] fable-library located at ${fableLibrary}`);
+        const projectResponse = await getProjectFile(
+          fableLibrary,
+          configuration,
+          fsproj,
+        );
         this.info(`[buildStart] Initial compile completed of ${fsproj}`);
         projectOptions = projectResponse.projectOptions;
         const compiledFSharpFiles = projectResponse.compiledFiles;
