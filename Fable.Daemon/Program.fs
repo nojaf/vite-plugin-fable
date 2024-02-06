@@ -7,6 +7,7 @@ open StreamJsonRpc
 open Fable
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.SourceCodeServices
+open FSharp.Compiler.Diagnostics
 open Fable.Compiler.ProjectCracker
 open Fable.Compiler.Util
 open Fable.Daemon
@@ -32,12 +33,33 @@ type CompiledProjectData =
     {
         ProjectOptions : FSharpProjectOptions
         CompiledFSharpFiles : Map<string, string>
+        Diagnostics : FSharpDiagnostic array
         CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
         PathResolver : PathResolver
     }
+
+let private mapRange (m : FSharp.Compiler.Text.range) =
+    {
+        StartLine = m.StartLine
+        StartColumn = m.StartColumn
+        EndLine = m.EndLine
+        EndColumn = m.EndColumn
+    }
+
+let private mapDiagnostics (ds : FSharpDiagnostic array) =
+    ds
+    |> Array.map (fun d ->
+        {
+            ErrorNumberText = d.ErrorNumberText
+            Message = d.Message
+            Range = mapRange d.Range
+            Severity = string d.Severity
+            FileName = d.FileName
+        }
+    )
 
 let tryCompileProject
     (crackerResolver : ProjectCrackerResolver)
@@ -99,7 +121,7 @@ let tryCompileProject
                     member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
                 }
 
-            let! initialCompiledFiles =
+            let! initialCompileResponse =
                 Fable.Compiler.CodeServices.compileProjectToJavaScript
                     sourceReader
                     checker
@@ -111,7 +133,8 @@ let tryCompileProject
                 Ok
                     {
                         ProjectOptions = crackerResponse.ProjectOptions
-                        CompiledFSharpFiles = initialCompiledFiles
+                        CompiledFSharpFiles = initialCompileResponse.CompiledFiles
+                        Diagnostics = initialCompileResponse.Diagnostics
                         CliArgs = cliArgs
                         Checker = checker
                         CrackerResponse = crackerResponse
@@ -122,7 +145,13 @@ let tryCompileProject
             return Error ex.Message
     }
 
-let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string, string>, string>> =
+type CompiledFileData =
+    {
+        CompiledFiles : Map<string, string>
+        Diagnostics : FSharpDiagnostic array
+    }
+
+let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFileData, string>> =
     async {
         try
             let fileName = Path.normalizePath fileName
@@ -133,7 +162,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string
                 )
                 |> snd
 
-            let! compiledFiles =
+            let! compiledFileResponse =
                 Fable.Compiler.CodeServices.compileFileToJavaScript
                     sourceReader
                     model.Checker
@@ -142,7 +171,12 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string
                     model.CrackerResponse
                     fileName
 
-            return Ok compiledFiles
+            return
+                Ok
+                    {
+                        CompiledFiles = compiledFileResponse.CompiledFiles
+                        Diagnostics = compiledFileResponse.Diagnostics
+                    }
         with ex ->
             return Error ex.Message
     }
@@ -186,7 +220,11 @@ type FableServer(sender : Stream, reader : Stream) as this =
                             return! loop model
                         | Ok result ->
                             replyChannel.Reply (
-                                ProjectChangedResult.Success (result.ProjectOptions, result.CompiledFSharpFiles)
+                                ProjectChangedResult.Success (
+                                    result.ProjectOptions,
+                                    result.CompiledFSharpFiles,
+                                    mapDiagnostics result.Diagnostics
+                                )
                             )
 
                             return!
@@ -205,7 +243,10 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                         match result with
                         | Error error -> replyChannel.Reply (FileChangedResult.Error error)
-                        | Ok compiledFiles -> replyChannel.Reply (FileChangedResult.Success compiledFiles)
+                        | Ok result ->
+                            replyChannel.Reply (
+                                FileChangedResult.Success (result.CompiledFiles, mapDiagnostics result.Diagnostics)
+                            )
 
                         return! loop model
                     | Disconnect -> return ()

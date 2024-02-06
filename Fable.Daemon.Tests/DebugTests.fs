@@ -8,23 +8,32 @@ open Nerdbank.Streams
 open StreamJsonRpc
 open Fable.Daemon
 
+let sampleApp =
+    {
+        Project = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
+        FableLibrary = "/home/nojaf/projects/vite-plugin-fable/sample-project/node_modules/fable-library"
+        Configuration = "Debug"
+    }
+
+let telplin =
+
+    {
+        Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
+        FableLibrary = "/home/nojaf/projects/telplin/tool/client//node_modules/fable-library"
+        Configuration = "Release"
+    }
+
 [<Test>]
 let DebugTest () =
     task {
-        Directory.SetCurrentDirectory ("/home/nojaf/projects/telplin/tool/client")
+        Directory.SetCurrentDirectory (FileInfo(sampleApp.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
         let daemon = new Program.FableServer (serverStream, serverStream)
         let client = new JsonRpc (clientStream, clientStream)
         client.StartListening ()
 
-        let! response =
-            daemon.Init
-                {
-                    Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
-                    FableLibrary = "/home/nojaf/projects/telplin/tool/client//node_modules/fable-library"
-                    Configuration = "Release"
-                }
+        let! response = daemon.Init sampleApp
 
         // let! fileChangedResponse =
         //     daemon.CompileFile (

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
+import colors from "picocolors";
 
 /**
  * @typedef {Object} FSharpDiscriminatedUnion
@@ -14,6 +15,23 @@ import { normalizePath } from "vite";
 /**
  * @typedef {Object} FSharpProjectOptions
  * @property {string[]} sourceFiles
+ */
+
+/**
+ * @typedef {Object} DiagnosticRange
+ * @property {number} startLine - The start line of the diagnostic range
+ * @property {number} startColumn - The start column of the diagnostic range
+ * @property {number} endLine - The end line of the diagnostic range
+ * @property {number} endColumn - The end column of the diagnostic range
+ */
+
+/**
+ * @typedef {Object} Diagnostic
+ * @property {string} errorNumberText - The error number text
+ * @property {string} message - The diagnostic message
+ * @property {DiagnosticRange} range - The range where the diagnostic occurs
+ * @property {string} severity - The severity of the diagnostic
+ * @property {string} fileName - The file name where the diagnostic is found
  */
 
 const fsharpFileRegex = /\.(fs|fsi)$/;
@@ -38,18 +56,19 @@ async function findFsProjFile(configDir) {
 
 /**
  @returns {Promise<string>}
-*/
+ */
 async function getFableLibrary() {
-  const fableLibraryInOwnNodeModules = path.join(
-    currentDir,
-    "node_modules/fable-library",
-  );
-  try {
-    await fs.access(fableLibraryInOwnNodeModules, fs.constants.F_OK);
-    return normalizePath(fableLibraryInOwnNodeModules);
-  } catch (e) {
-    return normalizePath(path.join(currentDir, "../fable-library"));
-  }
+  return "/home/nojaf/projects/Fable/temp/fable-library";
+  // const fableLibraryInOwnNodeModules = path.join(
+  //   currentDir,
+  //   "node_modules/fable-library",
+  // );
+  // try {
+  //   await fs.access(fableLibraryInOwnNodeModules, fs.constants.F_OK);
+  //   return normalizePath(fableLibraryInOwnNodeModules);
+  // } catch (e) {
+  //   return normalizePath(path.join(currentDir, "../fable-library"));
+  // }
 }
 
 /**
@@ -57,7 +76,7 @@ async function getFableLibrary() {
  * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
- * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>}>} A promise that resolves to an object containing the project options and compiled files.
+ * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>, diagnostics: Diagnostic[]>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function getProjectFile(fableLibrary, configuration, project) {
@@ -72,9 +91,44 @@ async function getProjectFile(fableLibrary, configuration, project) {
     return {
       projectOptions: result.fields[0],
       compiledFiles: result.fields[1],
+      diagnostics: result.fields[2],
     };
   } else {
     throw new Error(result.fields[0] || "Unknown error occurred");
+  }
+}
+
+/**
+ * @function
+ * @param {Diagnostic} diagnostic
+ * @returns {string}
+ */
+function formatDiagnostic(diagnostic) {
+  return `${diagnostic.severity.toUpperCase()} ${diagnostic.errorNumberText}: ${diagnostic.message} ${diagnostic.fileName} (${diagnostic.range.startLine},${diagnostic.range.startColumn}) (${diagnostic.range.endLine},${diagnostic.range.endColumn})`;
+}
+
+/**
+ * @function
+ * @param {Object} logger - The logger object with error, warn, and info methods.
+ * @param {Diagnostic[]} diagnostics - An array of Diagnostic objects to be logged.
+ */
+function logDiagnostics(logger, diagnostics) {
+  for (const diagnostic of diagnostics) {
+    switch (diagnostic.severity.toLowerCase()) {
+      case "error":
+        logger.warn(colors.red(formatDiagnostic(diagnostic)), {
+          timestamp: true,
+        });
+        break;
+      case "warning":
+        logger.warn(colors.yellow(formatDiagnostic(diagnostic)), {
+          timestamp: true,
+        });
+        break;
+      default:
+        logger.info(formatDiagnostic(diagnostic), { timestamp: true });
+        break;
+    }
   }
 }
 
@@ -99,14 +153,18 @@ export default function fablePlugin(config = {}) {
   /** @type {string} */
   let configuration = "Debug";
 
+  let logger = { info: console.log, warn: console.warn, error: console.error };
+
   return {
     name: "vite-plugin-fable",
     configResolved: async function (resolvedConfig) {
+      logger = resolvedConfig.logger;
       configuration =
         resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
-      resolvedConfig.logger.info(
-        `[configResolved] Configuration: ${configuration}`,
-      );
+      logger.info(colors.blue(`[fable] Configuration: ${configuration}`), {
+        timestamp: true,
+        preface: "fable",
+      });
 
       const configDir = path.dirname(resolvedConfig.configFile);
 
@@ -117,24 +175,37 @@ export default function fablePlugin(config = {}) {
       }
 
       if (!fsproj) {
-        resolvedConfig.logger.error(
-          `[configResolved] No .fsproj file was found in ${configDir}`,
+        logger.error(
+          colors.red(`[fable] No .fsproj file was found in ${configDir}`),
+          { timestamp: true },
         );
       } else {
-        resolvedConfig.logger.info(`[configResolved] Entry fsproj ${fsproj}`);
+        logger.info(colors.blue(`[fable] Entry fsproj ${fsproj}`), {
+          timestamp: true,
+        });
       }
     },
     buildStart: async function (options) {
       try {
-        this.info(`[buildStart] Initial compile started of ${fsproj}`);
+        logger.info(
+          colors.blue(`[fable] Initial compile started of ${fsproj}`),
+          { timestamp: true },
+        );
         const fableLibrary = await getFableLibrary();
-        this.info(`[buildStart] fable-library located at ${fableLibrary}`);
+        logger.info(
+          colors.blue(`[fable] fable-library located at ${fableLibrary}`),
+          { timestamp: true },
+        );
         const projectResponse = await getProjectFile(
           fableLibrary,
           configuration,
           fsproj,
         );
-        this.info(`[buildStart] Initial compile completed of ${fsproj}`);
+        logger.info(
+          colors.blue(`[buildStart] Initial compile completed of ${fsproj}`),
+          { timestamp: true },
+        );
+        logDiagnostics(this, projectResponse.diagnostics);
         projectOptions = projectResponse.projectOptions;
         const compiledFSharpFiles = projectResponse.compiledFiles;
         // for proj file
@@ -143,38 +214,37 @@ export default function fablePlugin(config = {}) {
           compilableFiles.set(file, compiledFSharpFiles[file]);
         });
       } catch (e) {
-        this.error({
-          message: `[buildStart] Unexpected projectResponse: ${e}`,
-          meta: {
-            error: e,
-          },
+        logger.error(colors.red(`[fable] Unexpected projectResponse: ${e}`), {
+          timestamp: true,
         });
       }
     },
     transform(src, id) {
       if (fsharpFileRegex.test(id)) {
-        this.info(`[transform] ${id}`);
+        logger.info(`[fable] transform: ${id}`, { timestamp: true });
         if (compilableFiles.has(id)) {
           return {
             code: compilableFiles.get(id),
             map: null,
           };
         } else {
-          this.warn(`[transform] ${id} is not part of compilableFiles`);
+          logger.warn(
+            colors.yellow(
+              `[fable] transform: ${id} is not part of compilableFiles`,
+            ),
+            { timestamp: true },
+          );
         }
       }
     },
     watchChange: async function (id, change) {
       if (projectOptions) {
         if (id.endsWith(".fsproj")) {
-          this.info("[watchChange] Should reload project");
+          logger.info("[fable] watch: Should reload project");
         } else if (fsharpFileRegex.test(id)) {
-          this.info(`[watchChange] ${id} changed`);
+          logger.info(`[fable] watch: ${id} changed`);
           try {
-            /** @typedef {object} json
-             * @property {string} case
-             * @property {string[]} fields
-             */
+            /** @type {FSharpDiscriminatedUnion} */
             const compilationResult = await endpoint.send("fable/compile", {
               fileName: id,
             });
@@ -183,8 +253,10 @@ export default function fablePlugin(config = {}) {
               compilationResult.fields &&
               compilationResult.fields.length > 0
             ) {
-              this.info(`[watchChange] ${id} compiled`);
+              logger.info(`[fable] watch: ${id} compiled`);
               const compiledFSharpFiles = compilationResult.fields[0];
+              const diagnostics = compilationResult.fields[1];
+              logDiagnostics(logger, diagnostics);
               const loadPromises = Object.keys(compiledFSharpFiles).map(
                 (fsFile) => {
                   compilableFiles.set(fsFile, compiledFSharpFiles[fsFile]);
@@ -193,18 +265,20 @@ export default function fablePlugin(config = {}) {
               );
               return await Promise.all(loadPromises);
             } else {
-              this.warn({
-                message: `[watchChange] compilation of ${id} failed`,
-                meta: {
-                  error: compilationResult.fields[0],
-                },
-              });
+              logger.error(
+                colors.red(
+                  `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
+                ),
+                { timestamp: true },
+              );
             }
           } catch (e) {
-            this.error({
-              message: `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully`,
-              cause: e,
-            });
+            logger.error(
+              colors.red(
+                `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
+              ),
+              { timestamp: true },
+            );
           }
         }
       }
@@ -219,7 +293,6 @@ export default function fablePlugin(config = {}) {
         const sourceFiles = projectOptions.sourceFiles.filter(
           (f, idx) => idx >= fileIdx,
         );
-        const logger = server.config.logger;
         logger.info(`[handleHotUpdate] ${file}`);
         const modulesToCompile = [];
         for (const sourceFile of sourceFiles) {

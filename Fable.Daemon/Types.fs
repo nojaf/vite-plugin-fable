@@ -12,14 +12,34 @@ type ProjectChangedPayload =
         FableLibrary : string
     }
 
+type DiagnosticRange =
+    {
+        StartLine : int
+        StartColumn : int
+        EndLine : int
+        EndColumn : int
+    }
+
+type Diagnostic =
+    {
+        ErrorNumberText : string
+        Message : string
+        Range : DiagnosticRange
+        Severity : string
+        FileName : string
+    }
+
 [<RequireQualifiedAccess>]
 type ProjectChangedResult =
-    | Success of projectOptions : FSharpProjectOptions * compiledFiles : Map<string, string>
+    | Success of
+        projectOptions : FSharpProjectOptions *
+        compiledFiles : Map<string, string> *
+        diagnostics : Diagnostic array
     | Error of string
 
 [<RequireQualifiedAccess>]
 type FileChangedResult =
-    | Success of compiledFSharpFiles : Map<string, string>
+    | Success of compiledFSharpFiles : Map<string, string> * diagnostics : Diagnostic array
     | Error of string
 
 type PingPayload = { Msg : string }
