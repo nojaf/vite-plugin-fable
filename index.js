@@ -72,16 +72,16 @@ async function getFableLibrary() {
 }
 
 /**
- * Retrieves the project file and its compiled files.
+ * Retrieves the project file. At this stage the project is type-checked but Fable did not compile anything.
  * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
- * @returns {Promise<{projectOptions: FSharpProjectOptions, compiledFiles: Map<string, string>, diagnostics: Diagnostic[]>} A promise that resolves to an object containing the project options and compiled files.
+ * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[]>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function getProjectFile(fableLibrary, configuration, project) {
   /** @type {FSharpDiscriminatedUnion} */
-  const result = await endpoint.send("fable/init", {
+  const result = await endpoint.send("fable/project-changed", {
     configuration,
     project,
     fableLibrary,
@@ -90,9 +90,25 @@ async function getProjectFile(fableLibrary, configuration, project) {
   if (result.case === "Success") {
     return {
       projectOptions: result.fields[0],
-      compiledFiles: result.fields[1],
-      diagnostics: result.fields[2],
+      diagnostics: result.fields[1],
     };
+  } else {
+    throw new Error(result.fields[0] || "Unknown error occurred");
+  }
+}
+
+/**
+ * Try and compile the entire project using Fable. The daemon contains all the information at this point to do this.
+ * No need to pass any additional info.
+ * @returns {Promise<{Map<string, string>>} A promise that resolves a map of compiled files.
+ * @throws {Error} If the result from the endpoint is not a success case.
+ */
+async function tryInitialCompile() {
+  /** @type {FSharpDiscriminatedUnion} */
+  const result = await endpoint.send("fable/initial-compile");
+
+  if (result.case === "Success") {
+    return result.fields[0];
   } else {
     throw new Error(result.fields[0] || "Unknown error occurred");
   }
@@ -201,13 +217,17 @@ export default function fablePlugin(config = {}) {
           configuration,
           fsproj,
         );
+        logger.info(colors.blue(`[buildStart] ${fsproj} was type-checked.`), {
+          timestamp: true,
+        });
+        logDiagnostics(this, projectResponse.diagnostics);
+        projectOptions = projectResponse.projectOptions;
+
+        const compiledFSharpFiles = await tryInitialCompile();
         logger.info(
           colors.blue(`[buildStart] Initial compile completed of ${fsproj}`),
           { timestamp: true },
         );
-        logDiagnostics(this, projectResponse.diagnostics);
-        projectOptions = projectResponse.projectOptions;
-        const compiledFSharpFiles = projectResponse.compiledFiles;
         // for proj file
         projectOptions.sourceFiles.forEach((file) => {
           this.addWatchFile(file);

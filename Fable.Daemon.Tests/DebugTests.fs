@@ -33,25 +33,11 @@ let DebugTest () =
         let client = new JsonRpc (clientStream, clientStream)
         client.StartListening ()
 
-        let! response = daemon.Init sampleApp
+        let! typecheckResponse = daemon.ProjectChanged sampleApp
+        ignore typecheckResponse
+        let! initialCompile = daemon.InitialCompile ()
 
-        // let! fileChangedResponse =
-        //     daemon.CompileFile (
-        //         {
-        //             FileName = "/home/nojaf/projects/vite-plugin-fable/sample-project/Math.fs"
-        //         }
-        //     )
-        // let! response =
-        //     client.InvokeAsync<ProjectChangedResult> (
-        //         "fable/init",
-        //         {
-        //             Project = @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\App.fsproj"
-        //             FableLibrary =
-        //                 @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\node_modules\fable-library"
-        //         }
-        //     )
-
-        printfn "response: %A" response
+        printfn "response: %A" initialCompile
         client.Dispose ()
         (daemon :> IDisposable).Dispose ()
 

@@ -434,6 +434,7 @@ type CoolCatResolver() =
                     | Caching.InvalidCacheReason.DependentFileHashMismatch _ ->
                         try
                             File.Delete currentCacheKey.CacheFile.FullName
+                        // TODO: remove any compiled fs file cache
                         finally
                             ()
                     | Caching.InvalidCacheReason.FileDoesNotExist _ -> ()

@@ -1,3 +1,3 @@
 ﻿module Math
 
-let sum a b = a + b - 2
+let sum a b = a + b - 12

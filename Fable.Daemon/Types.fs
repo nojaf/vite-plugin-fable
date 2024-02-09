@@ -31,10 +31,12 @@ type Diagnostic =
 
 [<RequireQualifiedAccess>]
 type ProjectChangedResult =
-    | Success of
-        projectOptions : FSharpProjectOptions *
-        compiledFiles : Map<string, string> *
-        diagnostics : Diagnostic array
+    | Success of projectOptions : FSharpProjectOptions * diagnostics : Diagnostic array
+    | Error of string
+
+[<RequireQualifiedAccess>]
+type FilesCompiledResult =
+    | Success of compiledFSharpFiles : Map<string, string>
     | Error of string
 
 [<RequireQualifiedAccess>]
