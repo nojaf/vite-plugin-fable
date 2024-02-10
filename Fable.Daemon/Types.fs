@@ -2,14 +2,17 @@
 
 open FSharp.Compiler.CodeAnalysis
 
+type FullPath = string
+type Hash = string
+
 type ProjectChangedPayload =
     {
         /// Release or Debug
         Configuration : string
         /// Absolute path of fsproj
-        Project : string
+        Project : FullPath
         /// Absolute path of fable-library. Typically found in the npm modules
-        FableLibrary : string
+        FableLibrary : FullPath
     }
 
 type DiagnosticRange =
@@ -26,7 +29,7 @@ type Diagnostic =
         Message : string
         Range : DiagnosticRange
         Severity : string
-        FileName : string
+        FileName : FullPath
     }
 
 [<RequireQualifiedAccess>]
@@ -36,14 +39,14 @@ type ProjectChangedResult =
 
 [<RequireQualifiedAccess>]
 type FilesCompiledResult =
-    | Success of compiledFSharpFiles : Map<string, string>
+    | Success of compiledFSharpFiles : Map<FullPath, string>
     | Error of string
 
 [<RequireQualifiedAccess>]
 type FileChangedResult =
-    | Success of compiledFSharpFiles : Map<string, string> * diagnostics : Diagnostic array
+    | Success of compiledFSharpFiles : Map<FullPath, string> * diagnostics : Diagnostic array
     | Error of string
 
 type PingPayload = { Msg : string }
 
-type CompileFilePayload = { FileName : string }
+type CompileFilePayload = { FileName : FullPath }

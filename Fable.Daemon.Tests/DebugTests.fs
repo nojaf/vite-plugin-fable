@@ -12,7 +12,7 @@ let sampleApp =
     {
         Project = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
         FableLibrary = "/home/nojaf/projects/vite-plugin-fable/sample-project/node_modules/fable-library"
-        Configuration = "Debug"
+        Configuration = "Release"
     }
 
 let telplin =

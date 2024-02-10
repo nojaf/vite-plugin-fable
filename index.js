@@ -212,6 +212,12 @@ export default function fablePlugin(config = {}) {
           colors.blue(`[fable] fable-library located at ${fableLibrary}`),
           { timestamp: true },
         );
+        logger.info(
+          colors.blue(`[buildStart] about to type-checked ${fsproj}.`),
+          {
+            timestamp: true,
+          },
+        );
         const projectResponse = await getProjectFile(
           fableLibrary,
           configuration,
