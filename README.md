@@ -22,4 +22,4 @@ You can read the code, that's is it for now.
 
 I talked a little bit about this project during this stream:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/nVpUaVFNpMk?si=IMN_Srk3Kk2yIcOZ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+[![vite-plugin-fable stream](http://img.youtube.com/vi/nVpUaVFNpMk/maxresdefault.jpg)](http://www.youtube.com/watch?v=nVpUaVFNpMk "vite-plugin-fable")
