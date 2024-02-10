@@ -20,7 +20,7 @@ let telplin =
     {
         Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
         FableLibrary = "/home/nojaf/projects/telplin/tool/client//node_modules/fable-library"
-        Configuration = "Release"
+        Configuration = "Debug"
     }
 
 [<Test>]

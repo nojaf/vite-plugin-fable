@@ -4,6 +4,7 @@ open FSharp.Compiler.CodeAnalysis
 
 type FullPath = string
 type Hash = string
+type JavaScript = string
 
 type ProjectChangedPayload =
     {
@@ -39,12 +40,12 @@ type ProjectChangedResult =
 
 [<RequireQualifiedAccess>]
 type FilesCompiledResult =
-    | Success of compiledFSharpFiles : Map<FullPath, string>
+    | Success of compiledFSharpFiles : Map<FullPath, JavaScript>
     | Error of string
 
 [<RequireQualifiedAccess>]
 type FileChangedResult =
-    | Success of compiledFSharpFiles : Map<FullPath, string> * diagnostics : Diagnostic array
+    | Success of compiledFSharpFiles : Map<FullPath, JavaScript> * diagnostics : Diagnostic array
     | Error of string
 
 type PingPayload = { Msg : string }

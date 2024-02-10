@@ -21,7 +21,7 @@ type Msg =
 
 type Model =
     {
-        ProjectCrackerResolver : ProjectCrackerResolver
+        CoolCatResolver : CoolCatResolver
         CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
@@ -137,15 +137,24 @@ let private mapDiagnostics (ds : FSharpDiagnostic array) =
 let tryCompileProject
     (pathResolver : PathResolver)
     (cliArgs : CliArgs)
+    (coolCatResolver : CoolCatResolver)
     (crackerResponse : CrackerResponse)
     (typeCheckProjectResult : TypeCheckProjectResult)
     : Async<Result<CompiledProjectData, string>>
     =
     async {
         try
+            let cachedFableModuleFiles =
+                coolCatResolver.TryGetCachedFableModuleFiles crackerResponse.ProjectOptions.ProjectFileName
+
             let files =
+                let cachedFiles = cachedFableModuleFiles.Keys |> Set.ofSeq
+
                 crackerResponse.ProjectOptions.SourceFiles
-                |> Array.filter (fun sf -> not (sf.EndsWith (".fsi", StringComparison.Ordinal)))
+                |> Array.filter (fun sf ->
+                    not (sf.EndsWith (".fsi", StringComparison.Ordinal))
+                    && not (cachedFiles.Contains sf)
+                )
 
             let! initialCompileResponse =
                 CodeServices.compileMultipleFilesToJavaScript
@@ -155,11 +164,20 @@ let tryCompileProject
                     typeCheckProjectResult
                     files
 
-            return
-                Ok
-                    {
-                        CompiledFSharpFiles = initialCompileResponse.CompiledFiles
-                    }
+            if cachedFableModuleFiles.IsEmpty then
+                let fableModuleFiles =
+                    initialCompileResponse.CompiledFiles
+                    |> Map.filter (fun key _value -> key.Contains ("fable_modules"))
+
+                coolCatResolver.WriteCachedFableModuleFiles
+                    crackerResponse.ProjectOptions.ProjectFileName
+                    fableModuleFiles
+
+            let compiledFiles =
+                (initialCompileResponse.CompiledFiles, cachedFableModuleFiles)
+                ||> Map.fold (fun state key value -> Map.add key value state)
+
+            return Ok { CompiledFSharpFiles = compiledFiles }
         with ex ->
             return Error ex.Message
     }
@@ -231,7 +249,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let! result = tryTypeCheckProject model.ProjectCrackerResolver payload
+                        let! result = tryTypeCheckProject model.CoolCatResolver payload
 
                         match result with
                         | Error error ->
@@ -267,6 +285,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                             tryCompileProject
                                 dummyPathResolver
                                 model.CliArgs
+                                model.CoolCatResolver
                                 model.CrackerResponse
                                 model.TypeCheckProjectResult
 
@@ -300,7 +319,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
             loop
                 {
-                    ProjectCrackerResolver = CoolCatCracking.CoolCatResolver ()
+                    CoolCatResolver = CoolCatResolver ()
                     CliArgs = Unchecked.defaultof<CliArgs>
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>

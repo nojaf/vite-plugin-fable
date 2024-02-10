@@ -10,47 +10,8 @@ open Fable.Compiler.ProjectCracker
 [<Literal>]
 let DesignTimeBuildExtension = ".vite-plugin-design-time"
 
-type CacheFileContent =
-    {
-        MainFsproj : Hash
-        DependentFiles : Map<FullPath, Hash>
-        Defines : Set<string>
-        ProjectOptionsResponse : ProjectOptionsResponse
-    }
-
-let private cacheDecoder =
-    Decode.object (fun get ->
-        let mainFsproj = get.Required.Field "mainFsproj" Decode.string
-
-        let dependentFiles =
-            get.Required.Field "dependentFiles" (Decode.keyValuePairs Decode.string)
-            |> Map.ofList
-
-        let defines =
-            get.Required.Field "defines" (Decode.array Decode.string) |> Set.ofArray
-
-        let projectOptions =
-            get.Required.Field "projectOptions" (Decode.array Decode.string)
-
-        let projectReferences =
-            get.Required.Field "projectReferences" (Decode.array Decode.string)
-
-        let outputType = get.Optional.Field "outputType" Decode.string
-        let targetFramework = get.Optional.Field "targetFramework" Decode.string
-
-        {
-            MainFsproj = mainFsproj
-            DependentFiles = dependentFiles
-            Defines = defines
-            ProjectOptionsResponse =
-                {
-                    ProjectOptions = projectOptions
-                    ProjectReferences = projectReferences
-                    OutputType = outputType
-                    TargetFramework = targetFramework
-                }
-        }
-    )
+[<Literal>]
+let FableModulesExtension = ".vite-plugin-fable-modules"
 
 /// Calculates the SHA256 hash of the given file.
 type FileInfo with
@@ -86,6 +47,9 @@ type CacheKey =
         /// Configuration
         Configuration : string
     }
+
+    member x.FableModulesCacheFile =
+        Path.ChangeExtension (x.CacheFile.FullName, FableModulesExtension) |> FileInfo
 
 [<ProtoContract>]
 [<CLIMutable>]
@@ -140,6 +104,8 @@ let writeDesignTimeBuild (x : CacheKey) (response : ProjectOptionsResponse) =
 
     Serializer.Serialize (fs, data)
 
+let private emptyArrayIfNull a = if isNull a then Array.empty else a
+
 /// Verify is the cached key for the project exists and is still valid.
 let canReuseDesignTimeBuildCache (cacheKey : CacheKey) : Result<ProjectOptionsResponse, InvalidCacheReason> =
     if not cacheKey.CacheFile.Exists then
@@ -176,8 +142,6 @@ let canReuseDesignTimeBuildCache (cacheKey : CacheKey) : Result<ProjectOptionsRe
         | None ->
 
         let projectOptionsResponse : ProjectOptionsResponse =
-            let emptyArrayIfNull a = if isNull a then Array.empty else a
-
             {
                 ProjectOptions = emptyArrayIfNull cacheContent.ProjectOptions
                 ProjectReferences = emptyArrayIfNull cacheContent.ProjectReferences
@@ -249,3 +213,49 @@ let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Res
 
         return Decode.fromString (cacheKeyDecoder options fsproj) json
     }
+
+[<ProtoContract>]
+[<CLIMutable>]
+type FableModulesProto =
+    {
+        [<ProtoMember(1)>]
+        Files : KeyValuePairProto array
+    }
+
+/// Try and load the previous compiled fable-modules files.
+/// These should not change if the cache remained stable.
+let loadFableModulesFromCache (cacheKey : CacheKey) : Map<FullPath, JavaScript> =
+    if not cacheKey.FableModulesCacheFile.Exists then
+        Map.empty
+    else
+
+    try
+        use fs = File.OpenRead cacheKey.FableModulesCacheFile.FullName
+        let { Files = files } = Serializer.Deserialize<FableModulesProto> fs
+
+        files
+        |> emptyArrayIfNull
+        |> Array.map (fun kv -> kv.Key, kv.Value)
+        |> Map.ofArray
+    with ex ->
+        Map.empty
+
+let writeFableModulesFromCache (cacheKey : CacheKey) (fableModuleFiles : Map<FullPath, JavaScript>) =
+    try
+        let proto : FableModulesProto =
+            let files =
+                fableModuleFiles.Keys
+                |> Seq.map (fun key ->
+                    {
+                        Key = key
+                        Value = fableModuleFiles.[key]
+                    }
+                )
+                |> Seq.toArray
+
+            { Files = files }
+
+        use fs = File.Create cacheKey.FableModulesCacheFile.FullName
+        Serializer.Serialize<FableModulesProto> (fs, proto)
+    finally
+        ()

@@ -26,7 +26,7 @@
   "fundinding": "https://nojaf.com/",
   "dependencies": {
     "ts-lsp-client": "^1.0.1",
-    "vite": "^5.1.0",
+    "vite": "^5.1.1",
     "fable-library": "^1.1.1"
   },
   "devDependencies": {
