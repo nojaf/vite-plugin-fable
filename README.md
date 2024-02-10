@@ -17,3 +17,9 @@ More thoughts on this can be read from the [documentation](https://nojaf.com/vit
 
 A first package was pushed to npm. This was merely to reserve the package name.  
 You can read the code, that's is it for now.
+
+## Video
+
+I talked a little bit about this project during this stream:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/nVpUaVFNpMk?si=IMN_Srk3Kk2yIcOZ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
