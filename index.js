@@ -201,7 +201,7 @@ async function compileProject(addWatchFile, logger, state) {
 
   const compiledFSharpFiles = await tryInitialCompile();
   logger.info(
-    colors.blue(`[buildStart] Initial compile completed of ${state.fsproj}`),
+    colors.blue(`[buildStart] Full compile completed of ${state.fsproj}`),
     { timestamp: true },
   );
   state.projectOptions.sourceFiles.forEach((file) => {
@@ -301,11 +301,14 @@ export default function fablePlugin(config = {}) {
       if (state.projectOptions) {
         if (state.dependentFiles.has(id)) {
           try {
-            logger.info(`[fable] watch: dependent file ${id} changed.`);
+            logger.info(
+              colors.blue(`[fable] watch: dependent file ${id} changed.`),
+              { timestamp: true },
+            );
             state.compilableFiles.clear();
             state.dependentFiles.clear();
             await compileProject(this.addWatchFile.bind(this), logger, state);
-            // TODO: trigger a full browser refresh
+            return;
           } catch (e) {
             logger.error(
               colors.red(
@@ -361,16 +364,7 @@ export default function fablePlugin(config = {}) {
       }
     },
     handleHotUpdate: function ({ file, server, modules }) {
-      if (
-        state.projectOptions &&
-        state.projectOptions.sourceFiles &&
-        fsharpFileRegex.test(file)
-      ) {
-        const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
-        const sourceFiles = state.projectOptions.sourceFiles.filter(
-          (f, idx) => idx >= fileIdx,
-        );
-        logger.info(`[handleHotUpdate] ${file}`);
+      function hotUpdateFiles(sourceFiles) {
         const modulesToCompile = [];
         for (const sourceFile of sourceFiles) {
           const module = server.moduleGraph.getModuleById(sourceFile);
@@ -393,6 +387,25 @@ export default function fablePlugin(config = {}) {
         } else {
           return modules;
         }
+      }
+
+      if (
+        state.projectOptions &&
+        state.projectOptions.sourceFiles &&
+        fsharpFileRegex.test(file)
+      ) {
+        logger.info(`[handleHotUpdate] ${file}`);
+        const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
+        const sourceFiles = state.projectOptions.sourceFiles.filter(
+          (f, idx) => idx >= fileIdx,
+        );
+        return hotUpdateFiles(sourceFiles);
+      } else if (state.projectOptions && state.dependentFiles.has(file)) {
+        logger.info(colors.green(`[handleHotUpdate] ${file}`), {
+          timestamp: true,
+        });
+        const sourceFiles = state.projectOptions.sourceFiles;
+        return hotUpdateFiles(sourceFiles);
       }
     },
     buildEnd: () => {
