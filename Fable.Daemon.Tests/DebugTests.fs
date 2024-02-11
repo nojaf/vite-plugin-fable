@@ -23,17 +23,25 @@ let telplin =
         Configuration = "Debug"
     }
 
+let fantomasTools =
+    {
+        Project = "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
+        FableLibrary = "/home/nojaf/projects/Fable/temp/fable-library"
+        Configuration = "Debug"
+    }
+
 [<Test>]
 let DebugTest () =
     task {
-        Directory.SetCurrentDirectory (FileInfo(sampleApp.Project).DirectoryName)
+        let config = fantomasTools
+        Directory.SetCurrentDirectory (FileInfo(config.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
         let daemon = new Program.FableServer (serverStream, serverStream)
         let client = new JsonRpc (clientStream, clientStream)
         client.StartListening ()
 
-        let! typecheckResponse = daemon.ProjectChanged sampleApp
+        let! typecheckResponse = daemon.ProjectChanged config
         ignore typecheckResponse
         let! initialCompile = daemon.InitialCompile ()
 

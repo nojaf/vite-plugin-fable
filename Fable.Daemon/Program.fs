@@ -84,7 +84,7 @@ let tryTypeCheckProject
                     Verbosity = Verbosity.Normal
                 }
 
-            let crackerOptions = CrackerOptions (cliArgs, false)
+            let crackerOptions = CrackerOptions (cliArgs, true)
             let crackerResponse = getFullProjectOpts crackerResolver crackerOptions
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
