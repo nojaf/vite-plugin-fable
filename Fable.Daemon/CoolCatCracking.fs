@@ -167,6 +167,14 @@ type CoolCatResolver() =
 
         Caching.writeFableModulesFromCache cached.[fsproj] fableModuleFiles
 
+    /// Get project files to watch inside the plugin
+    /// These are the fsproj and potential MSBuild import files
+    member x.MSBuildProjectFiles (fsproj : FullPath) : FileInfo list =
+        if not (cached.ContainsKey fsproj) then
+            List.empty
+        else
+            cached.[fsproj].DependentFiles
+
     interface ProjectCrackerResolver with
         member x.GetProjectOptionsFromProjectFile (isMain, options, projectFile) =
             async {

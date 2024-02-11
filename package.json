@@ -8,7 +8,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "bunx --bun prettier ./package.json ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css --write && dotnet fantomas .",
-    "postinstall": "dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release --ucr -p:PublishReadyToRun=true -o ./bin"
+    "postinstall": "dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release --ucr -p:PublishReadyToRun=true -o ./bin",
+    "lint": "bunx tsc"
   },
   "files": [
     "index.js",
@@ -25,11 +26,13 @@
   "license": "Apache-2.0",
   "fundinding": "https://nojaf.com/",
   "dependencies": {
+    "fable-library": "^1.1.1",
     "ts-lsp-client": "^1.0.1",
-    "vite": "^5.1.1",
-    "fable-library": "^1.1.1"
+    "vite": "^5.1.1"
   },
   "devDependencies": {
-    "prettier": "3.2.4"
+    "@types/node": "^20.11.17",
+    "prettier": "3.2.4",
+    "typescript": "^5.3.3"
   }
 }

@@ -35,7 +35,10 @@ type Diagnostic =
 
 [<RequireQualifiedAccess>]
 type ProjectChangedResult =
-    | Success of projectOptions : FSharpProjectOptions * diagnostics : Diagnostic array
+    | Success of
+        projectOptions : FSharpProjectOptions *
+        diagnostics : Diagnostic array *
+        dependentFiles : FullPath array
     | Error of string
 
 [<RequireQualifiedAccess>]

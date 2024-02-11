@@ -39,10 +39,13 @@ type TypeCheckedProjectData =
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
+        /// An array of files that influence the design time build
+        /// If any of these change, the plugin should respond accordingly.
+        DependentFiles : FullPath array
     }
 
 let tryTypeCheckProject
-    (crackerResolver : ProjectCrackerResolver)
+    (crackerResolver : CoolCatResolver)
     (payload : ProjectChangedPayload)
     : Async<Result<TypeCheckedProjectData, string>>
     =
@@ -96,6 +99,11 @@ let tryTypeCheckProject
 
             let! typeCheckResult = CodeServices.typeCheckProject sourceReader checker cliArgs crackerResponse
 
+            let dependentFiles =
+                crackerResolver.MSBuildProjectFiles crackerResponse.ProjectOptions.ProjectFileName
+                |> List.map (fun fi -> fi.FullName)
+                |> List.toArray
+
             return
                 Ok
                     {
@@ -104,6 +112,7 @@ let tryTypeCheckProject
                         Checker = checker
                         CrackerResponse = crackerResponse
                         SourceReader = sourceReader
+                        DependentFiles = dependentFiles
                     }
         with ex ->
             return Error ex.Message
@@ -167,7 +176,7 @@ let tryCompileProject
             if cachedFableModuleFiles.IsEmpty then
                 let fableModuleFiles =
                     initialCompileResponse.CompiledFiles
-                    |> Map.filter (fun key _value -> key.Contains ("fable_modules"))
+                    |> Map.filter (fun key _value -> key.Contains "fable_modules")
 
                 coolCatResolver.WriteCachedFableModuleFiles
                     crackerResponse.ProjectOptions.ProjectFileName
@@ -260,7 +269,8 @@ type FableServer(sender : Stream, reader : Stream) as this =
                         replyChannel.Reply (
                             ProjectChangedResult.Success (
                                 result.CrackerResponse.ProjectOptions,
-                                mapDiagnostics result.TypeCheckProjectResult.ProjectCheckResults.Diagnostics
+                                mapDiagnostics result.TypeCheckProjectResult.ProjectCheckResults.Diagnostics,
+                                result.DependentFiles
                             )
                         )
 

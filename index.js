@@ -43,6 +43,9 @@ const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
 });
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
 
+/**
+ @param {string} configDir - Folder path of the vite.config.js file.
+ */
 async function findFsProjFile(configDir) {
   const files = await fs.readdir(configDir);
   const fsprojFiles = files
@@ -76,7 +79,7 @@ async function getFableLibrary() {
  * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
- * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[]>} A promise that resolves to an object containing the project options and compiled files.
+ * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function getProjectFile(fableLibrary, configuration, project) {
@@ -91,6 +94,7 @@ async function getProjectFile(fableLibrary, configuration, project) {
     return {
       projectOptions: result.fields[0],
       diagnostics: result.fields[1],
+      dependentFiles: result.fields[2],
     };
   } else {
     throw new Error(result.fields[0] || "Unknown error occurred");
@@ -100,7 +104,7 @@ async function getProjectFile(fableLibrary, configuration, project) {
 /**
  * Try and compile the entire project using Fable. The daemon contains all the information at this point to do this.
  * No need to pass any additional info.
- * @returns {Promise<{Map<string, string>>} A promise that resolves a map of compiled files.
+ * @returns {Promise<Map<string, string>>} A promise that resolves a map of compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function tryInitialCompile() {
@@ -148,6 +152,64 @@ function logDiagnostics(logger, diagnostics) {
   }
 }
 
+/** @typedef {Object} PluginState
+ * @property {Map<string, string>} compilableFiles
+ * @property {FSharpProjectOptions|null} projectOptions
+ * @property {string|null} fsproj
+ * @property {string} configuration
+ * @property {Set<string>} dependentFiles
+ */
+
+/**
+ * Does a type-check and compilation of the state.fsproj
+ * @function
+ * @param {function} addWatchFile
+ * @param {import('vite').Logger} logger
+ * @param {PluginState} state
+ * @returns {Promise}
+ */
+async function compileProject(addWatchFile, logger, state) {
+  logger.info(colors.blue(`[fable] Full compile started of ${state.fsproj}`), {
+    timestamp: true,
+  });
+  const fableLibrary = await getFableLibrary();
+  logger.info(colors.blue(`[fable] fable-library located at ${fableLibrary}`), {
+    timestamp: true,
+  });
+  logger.info(
+    colors.blue(`[buildStart] about to type-checked ${state.fsproj}.`),
+    {
+      timestamp: true,
+    },
+  );
+  const projectResponse = await getProjectFile(
+    fableLibrary,
+    state.configuration,
+    state.fsproj,
+  );
+  logger.info(colors.blue(`[buildStart] ${state.fsproj} was type-checked.`), {
+    timestamp: true,
+  });
+  logDiagnostics(logger, projectResponse.diagnostics);
+  state.projectOptions = projectResponse.projectOptions;
+
+  for (let dependentFile of projectResponse.dependentFiles) {
+    dependentFile = normalizePath(dependentFile);
+    state.dependentFiles.add(dependentFile);
+    addWatchFile(dependentFile);
+  }
+
+  const compiledFSharpFiles = await tryInitialCompile();
+  logger.info(
+    colors.blue(`[buildStart] Initial compile completed of ${state.fsproj}`),
+    { timestamp: true },
+  );
+  state.projectOptions.sourceFiles.forEach((file) => {
+    addWatchFile(file);
+    state.compilableFiles.set(file, compiledFSharpFiles[file]);
+  });
+}
+
 /**
  * @typedef {Object} PluginOptions
  * @property {string} [fsproj] - The main fsproj to load
@@ -160,97 +222,69 @@ function logDiagnostics(logger, diagnostics) {
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
 export default function fablePlugin(config = {}) {
-  /* @type {Map<string, string>} */
-  const compilableFiles = new Map();
-  /** @type {FSharpProjectOptions|null} */
-  let projectOptions = null;
-  /** @type {string|null} */
-  let fsproj = null;
-  /** @type {string} */
-  let configuration = "Debug";
+  /** @type {PluginState} */
+  const state = {
+    compilableFiles: new Map(),
+    projectOptions: null,
+    fsproj: null,
+    configuration: "Debug",
+    dependentFiles: new Set([]),
+  };
 
+  /** @type {import('vite').Logger} */
+  // @ts-ignore
   let logger = { info: console.log, warn: console.warn, error: console.error };
 
   return {
     name: "vite-plugin-fable",
     configResolved: async function (resolvedConfig) {
       logger = resolvedConfig.logger;
-      configuration =
+      state.configuration =
         resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
-      logger.info(colors.blue(`[fable] Configuration: ${configuration}`), {
-        timestamp: true,
-        preface: "fable",
-      });
+      logger.info(
+        colors.blue(`[fable] Configuration: ${state.configuration}`),
+        {
+          timestamp: true,
+        },
+      );
 
       const configDir = path.dirname(resolvedConfig.configFile);
 
       if (config && config.fsproj) {
-        fsproj = config.fsproj;
+        state.fsproj = config.fsproj;
       } else {
-        fsproj = await findFsProjFile(configDir);
+        state.fsproj = await findFsProjFile(configDir);
       }
 
-      if (!fsproj) {
+      if (!state.fsproj) {
         logger.error(
           colors.red(`[fable] No .fsproj file was found in ${configDir}`),
           { timestamp: true },
         );
       } else {
-        logger.info(colors.blue(`[fable] Entry fsproj ${fsproj}`), {
+        logger.info(colors.blue(`[fable] Entry fsproj ${state.fsproj}`), {
           timestamp: true,
         });
       }
     },
     buildStart: async function (options) {
       try {
-        logger.info(
-          colors.blue(`[fable] Initial compile started of ${fsproj}`),
-          { timestamp: true },
-        );
-        const fableLibrary = await getFableLibrary();
-        logger.info(
-          colors.blue(`[fable] fable-library located at ${fableLibrary}`),
-          { timestamp: true },
-        );
-        logger.info(
-          colors.blue(`[buildStart] about to type-checked ${fsproj}.`),
+        await compileProject(this.addWatchFile.bind(this), logger, state);
+      } catch (e) {
+        logger.error(
+          colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
           {
             timestamp: true,
           },
         );
-        const projectResponse = await getProjectFile(
-          fableLibrary,
-          configuration,
-          fsproj,
-        );
-        logger.info(colors.blue(`[buildStart] ${fsproj} was type-checked.`), {
-          timestamp: true,
-        });
-        logDiagnostics(this, projectResponse.diagnostics);
-        projectOptions = projectResponse.projectOptions;
-
-        const compiledFSharpFiles = await tryInitialCompile();
-        logger.info(
-          colors.blue(`[buildStart] Initial compile completed of ${fsproj}`),
-          { timestamp: true },
-        );
-        // for proj file
-        projectOptions.sourceFiles.forEach((file) => {
-          this.addWatchFile(file);
-          compilableFiles.set(file, compiledFSharpFiles[file]);
-        });
-      } catch (e) {
-        logger.error(colors.red(`[fable] Unexpected projectResponse: ${e}`), {
-          timestamp: true,
-        });
       }
     },
     transform(src, id) {
       if (fsharpFileRegex.test(id)) {
         logger.info(`[fable] transform: ${id}`, { timestamp: true });
-        if (compilableFiles.has(id)) {
+        if (state.compilableFiles.has(id)) {
           return {
-            code: compilableFiles.get(id),
+            code: state.compilableFiles.get(id),
             map: null,
           };
         } else {
@@ -264,9 +298,22 @@ export default function fablePlugin(config = {}) {
       }
     },
     watchChange: async function (id, change) {
-      if (projectOptions) {
-        if (id.endsWith(".fsproj")) {
-          logger.info("[fable] watch: Should reload project");
+      if (state.projectOptions) {
+        if (state.dependentFiles.has(id)) {
+          try {
+            logger.info(`[fable] watch: dependent file ${id} changed.`);
+            state.compilableFiles.clear();
+            state.dependentFiles.clear();
+            await compileProject(this.addWatchFile.bind(this), logger, state);
+            // TODO: trigger a full browser refresh
+          } catch (e) {
+            logger.error(
+              colors.red(
+                `[fable] Unexpected failure during watchChange for ${id}`,
+              ),
+              { timestamp: true },
+            );
+          }
         } else if (fsharpFileRegex.test(id)) {
           logger.info(`[fable] watch: ${id} changed`);
           try {
@@ -285,11 +332,15 @@ export default function fablePlugin(config = {}) {
               logDiagnostics(logger, diagnostics);
               const loadPromises = Object.keys(compiledFSharpFiles).map(
                 (fsFile) => {
-                  compilableFiles.set(fsFile, compiledFSharpFiles[fsFile]);
+                  state.compilableFiles.set(
+                    fsFile,
+                    compiledFSharpFiles[fsFile],
+                  );
                   return this.load({ id: fsFile });
                 },
               );
-              return await Promise.all(loadPromises);
+              await Promise.all(loadPromises);
+              return;
             } else {
               logger.error(
                 colors.red(
@@ -311,12 +362,12 @@ export default function fablePlugin(config = {}) {
     },
     handleHotUpdate: function ({ file, server, modules }) {
       if (
-        projectOptions &&
-        projectOptions.sourceFiles &&
+        state.projectOptions &&
+        state.projectOptions.sourceFiles &&
         fsharpFileRegex.test(file)
       ) {
-        const fileIdx = projectOptions.sourceFiles.indexOf(file);
-        const sourceFiles = projectOptions.sourceFiles.filter(
+        const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
+        const sourceFiles = state.projectOptions.sourceFiles.filter(
           (f, idx) => idx >= fileIdx,
         );
         logger.info(`[handleHotUpdate] ${file}`);
