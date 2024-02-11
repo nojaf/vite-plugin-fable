@@ -40,45 +40,29 @@ module CoolCatCracking =
 
                 MSBuild.dotnet_msbuild
                     fsproj
-                    $"{configuration} --getProperty:TargetFrameworks --getProperty:TargetFramework --getProperty:DefineConstants"
+                    $"{configuration} --getProperty:TargetFrameworks --getProperty:TargetFramework"
 
             // To perform a design time build we need to target an exact single TargetFramework
             // There is a slight chance that the fsproj uses <TargetFrameworks>net8.0</TargetFrameworks>
             // We need to take this into account.
-            let defineConstants, targetFramework =
+            let targetFramework =
                 let decoder =
                     Decode.object (fun get ->
-                        get.Required.At [ "Properties" ; "DefineConstants" ] Decode.string,
                         get.Required.At [ "Properties" ; "TargetFramework" ] Decode.string,
                         get.Required.At [ "Properties" ; "TargetFrameworks" ] Decode.string
                     )
 
                 match Decode.fromString decoder targetFrameworkJson with
                 | Error e -> failwithf $"Could not decode target framework json, %A{e}"
-                | Ok (defineConstants, tf, tfs) ->
-
-                let defineConstants =
-                    defineConstants.Split ';'
-                    |> Array.filter (fun c -> c <> "DEBUG" || c <> "RELEASE")
+                | Ok (tf, tfs) ->
 
                 if not (String.IsNullOrWhiteSpace tf) then
-                    defineConstants, tf
+                    tf
                 else
-                    defineConstants, tfs.Split ';' |> Array.head
+                    tfs.Split ';' |> Array.head
 
             // TRACE is typically present for fsproj projects
-            let defines =
-                [
-                    "TRACE"
-                    if not (String.IsNullOrWhiteSpace options.Configuration) then
-                        options.Configuration.ToUpper ()
-                    yield! defineConstants
-                    yield! options.FableOptions.Define
-                ]
-
-                |> List.map (fun s -> s.Trim ())
-                // Escaped `;`
-                |> String.concat "%3B"
+            let defines = options.FableOptions.Define
 
             // When CoreCompile does not need a rebuild, MSBuild will skip that target and thus will not populate the FscCommandLineArgs items.
             // To overcome this we want to force a design time build, using the NonExistentFile property helps prevent a cache hit.
@@ -89,8 +73,6 @@ module CoolCatCracking =
                     "/p:VitePlugin=True"
                     if not (String.IsNullOrWhiteSpace options.Configuration) then
                         $"/p:Configuration=%s{options.Configuration}"
-                    if not (String.IsNullOrWhiteSpace defines) then
-                        $"/p:DefineConstants=\"%s{defines}\""
                     $"/p:TargetFramework=%s{targetFramework}"
                     "/p:DesignTimeBuild=True"
                     "/p:SkipCompilerExecution=True"
@@ -125,7 +107,7 @@ module CoolCatCracking =
             let arguments =
                 $"/restore /t:%s{targets} %s{properties}  -warnAsMessage:NU1608 --getItem:FscCommandLineArgs --getItem:ProjectReference --getProperty:OutputType"
 
-            let! json = MSBuild.dotnet_msbuild fsproj arguments
+            let! json = MSBuild.dotnet_msbuild_with_defines fsproj arguments defines
 
             let decoder =
                 Decode.object (fun get ->

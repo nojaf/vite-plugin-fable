@@ -5,9 +5,8 @@ open System.IO
 open System.Diagnostics
 open System.Reflection
 
-/// Execute `dotnet msbuild` process and capture the stdout.
-/// Expected usage is with `--getProperty` and `--getItem` arguments.
-let dotnet_msbuild (fsproj : FileInfo) (args : string) : Async<string> =
+/// Same as `dotnet_msbuild` but includes the defines as environment variables.
+let dotnet_msbuild_with_defines (fsproj : FileInfo) (args : string) (defines : string list) : Async<string> =
     backgroundTask {
         let psi = ProcessStartInfo "dotnet"
         let pwd = Assembly.GetEntryAssembly().Location |> Path.GetDirectoryName
@@ -16,6 +15,11 @@ let dotnet_msbuild (fsproj : FileInfo) (args : string) : Async<string> =
         psi.RedirectStandardOutput <- true
         psi.RedirectStandardError <- true
         psi.UseShellExecute <- false
+
+        if not (List.isEmpty defines) then
+            let definesValue = defines |> String.concat ";"
+            psi.Environment.Add ("DefineConstants", definesValue)
+
         use ps = new Process ()
         ps.StartInfo <- psi
         ps.Start () |> ignore
@@ -29,3 +33,8 @@ let dotnet_msbuild (fsproj : FileInfo) (args : string) : Async<string> =
         return output.Trim ()
     }
     |> Async.AwaitTask
+
+/// Execute `dotnet msbuild` process and capture the stdout.
+/// Expected usage is with `--getProperty` and `--getItem` arguments.
+let dotnet_msbuild (fsproj : FileInfo) (args : string) : Async<string> =
+    dotnet_msbuild_with_defines fsproj args List.empty
