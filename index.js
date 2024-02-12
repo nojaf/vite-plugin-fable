@@ -61,7 +61,10 @@ async function findFsProjFile(configDir) {
  @returns {Promise<string>}
  */
 async function getFableLibrary() {
-  return "/home/nojaf/projects/Fable/temp/fable-library";
+  return process.platform === "win32"
+    ? normalizePath("C:\\Users\\nojaf\\Projects\\Fable\\temp\\fable-library")
+    : "/home/nojaf/projects/Fable/temp/fable-library";
+  // return "/home/nojaf/projects/Fable/temp/fable-library";
   // const fableLibraryInOwnNodeModules = path.join(
   //   currentDir,
   //   "node_modules/fable-library",
