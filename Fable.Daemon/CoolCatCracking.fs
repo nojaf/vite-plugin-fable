@@ -205,6 +205,7 @@ type CoolCatResolver() =
                     // Delete the current cache file if it is no longer valid.
                     match reason with
                     | Caching.InvalidCacheReason.CouldNotDeserialize _
+                    | Caching.InvalidCacheReason.FableCompilerVersionMismatch _
                     | Caching.InvalidCacheReason.MainFsprojChanged
                     | Caching.InvalidCacheReason.DefinesMismatch _
                     | Caching.InvalidCacheReason.DependentFileCountDoesNotMatch _

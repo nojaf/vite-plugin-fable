@@ -2,6 +2,7 @@ module Fable.Daemon.Caching
 
 open System
 open System.IO
+open System.Reflection
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
 open ProtoBuf
@@ -12,6 +13,14 @@ let DesignTimeBuildExtension = ".vite-plugin-design-time"
 
 [<Literal>]
 let FableModulesExtension = ".vite-plugin-fable-modules"
+
+let fableCompilerVersion =
+    let assembly = typeof<CrackerOptions>.Assembly
+
+    let attribute =
+        assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute> ()
+
+    attribute.InformationalVersion
 
 /// Calculates the SHA256 hash of the given file.
 type FileInfo with
@@ -29,6 +38,7 @@ type InvalidCacheReason =
     | DefinesMismatch of cachedDefines : Set<string> * currentDefines : Set<string>
     | DependentFileCountDoesNotMatch of cachedCount : int * currentCount : int
     | DependentFileHashMismatch of file : FileInfo
+    | FableCompilerVersionMismatch of cachedVersion : string * currentVersion : string
 
 /// Contains all the info that determines the cache design time build value.
 /// This is not the cached information!
@@ -46,6 +56,8 @@ type CacheKey =
         Defines : Set<string>
         /// Configuration
         Configuration : string
+        /// AssemblyInformationalVersion of Fable.Compiler
+        FableCompilerVersion : string
     }
 
     member x.FableModulesCacheFile =
@@ -79,6 +91,8 @@ type DesignTimeBuildCache =
         OutputType : string option
         [<ProtoMember(7)>]
         TargetFramework : string option
+        [<ProtoMember(8)>]
+        FableCompilerVersion : string
     }
 
 /// Save the compiler arguments results from the design time build to the intermediate folder.
@@ -100,6 +114,7 @@ let writeDesignTimeBuild (x : CacheKey) (response : ProjectOptionsResponse) =
             ProjectReferences = response.ProjectReferences
             OutputType = response.OutputType
             TargetFramework = response.TargetFramework
+            FableCompilerVersion = x.FableCompilerVersion
         }
 
     Serializer.Serialize (fs, data)
@@ -117,7 +132,14 @@ let canReuseDesignTimeBuildCache (cacheKey : CacheKey) : Result<ProjectOptionsRe
         let cacheContent = Serializer.Deserialize<DesignTimeBuildCache> fs
         let cachedDefines = Set.ofArray cacheContent.Defines
 
-        if cacheKey.MainFsproj.Hash <> cacheContent.MainFsproj then
+        if fableCompilerVersion <> cacheContent.FableCompilerVersion then
+            Error (
+                InvalidCacheReason.FableCompilerVersionMismatch (
+                    cacheContent.FableCompilerVersion,
+                    fableCompilerVersion
+                )
+            )
+        elif cacheKey.MainFsproj.Hash <> cacheContent.MainFsproj then
             Error InvalidCacheReason.MainFsprojChanged
         elif cacheKey.Defines <> cachedDefines then
             Error (InvalidCacheReason.DefinesMismatch (cachedDefines, cacheKey.Defines))
@@ -194,6 +216,7 @@ let private cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Dec
             DependentFiles = [ yield! paths ; yield! nugetGProps ]
             Defines = Set.ofList options.FableOptions.Define
             Configuration = options.Configuration
+            FableCompilerVersion = fableCompilerVersion
         }
     )
 
