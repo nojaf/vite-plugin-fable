@@ -187,28 +187,27 @@ let private cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Dec
                 if not fi.Exists then None else Some fi
             )
 
+        // if `UseArtifactsOutput=true` then the IntermediateOutputPath the path is absolute C:\Users\nojaf\Projects\telplin\artifacts\obj\OnlineTool\debug
+        // else it is something like
         let intermediateOutputPath =
-            let v =
-                get.Required.At [ "Properties" ; "BaseIntermediateOutputPath" ] Decode.string
+            let v = get.Required.At [ "Properties" ; "IntermediateOutputPath" ] Decode.string
 
             let v = v.TrimEnd '\\'
             Path.Combine (fsproj.DirectoryName, v) |> Path.GetFullPath
 
+        // Full path of the folder that contains the `g.props` file.
+        let msbuildProjectExtensionsPath =
+            get.Required.At [ "Properties" ; "MSBuildProjectExtensionsPath" ] Decode.string
+
         let nugetGProps =
             let gPropFile =
-                Path.Combine (intermediateOutputPath, $"%s{fsproj.Name}.nuget.g.props")
+                Path.Combine (msbuildProjectExtensionsPath, $"%s{fsproj.Name}.nuget.g.props")
                 |> FileInfo
 
             if not gPropFile.Exists then [] else [ gPropFile ]
 
         let cacheFile =
-            FileInfo (
-                Path.Combine (
-                    intermediateOutputPath,
-                    options.Configuration,
-                    $"{fsproj.Name}%s{DesignTimeBuildExtension}"
-                )
-            )
+            FileInfo (Path.Combine (intermediateOutputPath, $"{fsproj.Name}%s{DesignTimeBuildExtension}"))
 
         {
             MainFsproj = fsproj
@@ -232,7 +231,9 @@ let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Res
             )
 
         let! json =
-            MSBuild.dotnet_msbuild fsproj "--getProperty:MSBuildAllProjects --getProperty:BaseIntermediateOutputPath"
+            MSBuild.dotnet_msbuild
+                fsproj
+                "--getProperty:MSBuildAllProjects --getProperty:IntermediateOutputPath --getProperty:MSBuildProjectExtensionsPath"
 
         return Decode.fromString (cacheKeyDecoder options fsproj) json
     }

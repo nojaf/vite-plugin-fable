@@ -14,8 +14,9 @@ fsi.AddPrinter (fun (x : ProjectOptionsResponse) ->
 )
 
 let fsproj =
-    "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
-// Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+    // @"C:\Users\nojaf\Projects\telplin\tool\client\OnlineTool.fsproj"
+    // "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
+    Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
 
 let cliArgs : CliArgs =
     {
