@@ -7,9 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="..\Fable.Daemon\Types.fs">
-            <Link>Types.fs</Link>
-        </Compile>
         <Compile Include="DebugTests.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>

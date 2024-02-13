@@ -7,9 +7,11 @@
 
     <ItemGroup>
         <Compile Include="Thoth/Decode.fs" />
-        <Compile Include="Thoth/Encode.fs" />
-        <Compile Include="CoolCatCracking.fs"/>
+<!--        <Compile Include="Thoth/Encode.fs" />-->
         <Compile Include="Types.fs"/>
+        <Compile Include="MSBuild.fs" />
+        <Compile Include="Caching.fs" />
+        <Compile Include="CoolCatCracking.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>
 
@@ -17,5 +19,6 @@
         <PackageReference Include="FSharp.SystemTextJson" />
         <PackageReference Include="StreamJsonRpc"/>
         <PackageReference Include="Thoth.Json.Core" />
+        <PackageReference Include="protobuf-net" />
     </ItemGroup>
 </Project>

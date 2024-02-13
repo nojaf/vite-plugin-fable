@@ -7,42 +7,47 @@ open StreamJsonRpc
 open Fable
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.SourceCodeServices
+open FSharp.Compiler.Diagnostics
 open Fable.Compiler.ProjectCracker
 open Fable.Compiler.Util
+open Fable.Compiler
 open Fable.Daemon
 
 type Msg =
     | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<ProjectChangedResult>
+    | CompileFullProject of AsyncReplyChannel<FilesCompiledResult>
     | CompileFile of fileName : string * AsyncReplyChannel<FileChangedResult>
     | Disconnect
 
 type Model =
     {
-        ProjectCrackerResolver : ProjectCrackerResolver
+        CoolCatResolver : CoolCatResolver
         CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
         PathResolver : PathResolver
+        TypeCheckProjectResult : TypeCheckProjectResult
     }
 
 type PongResponse = { Message : string }
 
-type CompiledProjectData =
+type TypeCheckedProjectData =
     {
-        ProjectOptions : FSharpProjectOptions
-        CompiledFSharpFiles : Map<string, string>
+        TypeCheckProjectResult : TypeCheckProjectResult
         CliArgs : CliArgs
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
-        PathResolver : PathResolver
+        /// An array of files that influence the design time build
+        /// If any of these change, the plugin should respond accordingly.
+        DependentFiles : FullPath array
     }
 
-let tryCompileProject
-    (crackerResolver : ProjectCrackerResolver)
+let tryTypeCheckProject
+    (crackerResolver : CoolCatResolver)
     (payload : ProjectChangedPayload)
-    : Async<Result<CompiledProjectData, string>>
+    : Async<Result<TypeCheckedProjectData, string>>
     =
     async {
         try
@@ -82,9 +87,8 @@ let tryCompileProject
                     Verbosity = Verbosity.Normal
                 }
 
-            let crackerOptions = CrackerOptions (cliArgs, false)
+            let crackerOptions = CrackerOptions (cliArgs, true)
             let crackerResponse = getFullProjectOpts crackerResolver crackerOptions
-
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
             let sourceReader =
@@ -93,36 +97,107 @@ let tryCompileProject
                 )
                 |> snd
 
-            let dummyPathResolver =
-                { new PathResolver with
-                    member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
-                    member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
-                }
+            let! typeCheckResult = CodeServices.typeCheckProject sourceReader checker cliArgs crackerResponse
 
-            let! initialCompiledFiles =
-                Fable.Compiler.CodeServices.compileProjectToJavaScript
-                    sourceReader
-                    checker
-                    dummyPathResolver
-                    cliArgs
-                    crackerResponse
+            let dependentFiles =
+                crackerResolver.MSBuildProjectFiles crackerResponse.ProjectOptions.ProjectFileName
+                |> List.map (fun fi -> fi.FullName)
+                |> List.toArray
 
             return
                 Ok
                     {
-                        ProjectOptions = crackerResponse.ProjectOptions
-                        CompiledFSharpFiles = initialCompiledFiles
+                        TypeCheckProjectResult = typeCheckResult
                         CliArgs = cliArgs
                         Checker = checker
                         CrackerResponse = crackerResponse
                         SourceReader = sourceReader
-                        PathResolver = dummyPathResolver
+                        DependentFiles = dependentFiles
                     }
         with ex ->
             return Error ex.Message
     }
 
-let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string, string>, string>> =
+type CompiledProjectData =
+    {
+        CompiledFSharpFiles : Map<string, string>
+    }
+
+let private mapRange (m : FSharp.Compiler.Text.range) =
+    {
+        StartLine = m.StartLine
+        StartColumn = m.StartColumn
+        EndLine = m.EndLine
+        EndColumn = m.EndColumn
+    }
+
+let private mapDiagnostics (ds : FSharpDiagnostic array) =
+    ds
+    |> Array.map (fun d ->
+        {
+            ErrorNumberText = d.ErrorNumberText
+            Message = d.Message
+            Range = mapRange d.Range
+            Severity = string d.Severity
+            FileName = d.FileName
+        }
+    )
+
+let tryCompileProject
+    (pathResolver : PathResolver)
+    (cliArgs : CliArgs)
+    (coolCatResolver : CoolCatResolver)
+    (crackerResponse : CrackerResponse)
+    (typeCheckProjectResult : TypeCheckProjectResult)
+    : Async<Result<CompiledProjectData, string>>
+    =
+    async {
+        try
+            let cachedFableModuleFiles =
+                coolCatResolver.TryGetCachedFableModuleFiles crackerResponse.ProjectOptions.ProjectFileName
+
+            let files =
+                let cachedFiles = cachedFableModuleFiles.Keys |> Set.ofSeq
+
+                crackerResponse.ProjectOptions.SourceFiles
+                |> Array.filter (fun sf ->
+                    not (sf.EndsWith (".fsi", StringComparison.Ordinal))
+                    && not (cachedFiles.Contains sf)
+                )
+
+            let! initialCompileResponse =
+                CodeServices.compileMultipleFilesToJavaScript
+                    pathResolver
+                    cliArgs
+                    crackerResponse
+                    typeCheckProjectResult
+                    files
+
+            if cachedFableModuleFiles.IsEmpty then
+                let fableModuleFiles =
+                    initialCompileResponse.CompiledFiles
+                    |> Map.filter (fun key _value -> key.Contains "fable_modules")
+
+                coolCatResolver.WriteCachedFableModuleFiles
+                    crackerResponse.ProjectOptions.ProjectFileName
+                    fableModuleFiles
+
+            let compiledFiles =
+                (initialCompileResponse.CompiledFiles, cachedFableModuleFiles)
+                ||> Map.fold (fun state key value -> Map.add key value state)
+
+            return Ok { CompiledFSharpFiles = compiledFiles }
+        with ex ->
+            return Error ex.Message
+    }
+
+type CompiledFileData =
+    {
+        CompiledFiles : Map<string, string>
+        Diagnostics : FSharpDiagnostic array
+    }
+
+let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFileData, string>> =
     async {
         try
             let fileName = Path.normalizePath fileName
@@ -133,7 +208,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string
                 )
                 |> snd
 
-            let! compiledFiles =
+            let! compiledFileResponse =
                 Fable.Compiler.CodeServices.compileFileToJavaScript
                     sourceReader
                     model.Checker
@@ -142,7 +217,12 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<Map<string
                     model.CrackerResponse
                     fileName
 
-            return Ok compiledFiles
+            return
+                Ok
+                    {
+                        CompiledFiles = compiledFileResponse.CompiledFiles
+                        Diagnostics = compiledFileResponse.Diagnostics
+                    }
         with ex ->
             return Error ex.Message
     }
@@ -178,25 +258,58 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let! result = tryCompileProject model.ProjectCrackerResolver payload
+                        let! result = tryTypeCheckProject model.CoolCatResolver payload
 
                         match result with
                         | Error error ->
                             replyChannel.Reply (ProjectChangedResult.Error error)
                             return! loop model
                         | Ok result ->
-                            replyChannel.Reply (
-                                ProjectChangedResult.Success (result.ProjectOptions, result.CompiledFSharpFiles)
+
+                        replyChannel.Reply (
+                            ProjectChangedResult.Success (
+                                result.CrackerResponse.ProjectOptions,
+                                mapDiagnostics result.TypeCheckProjectResult.ProjectCheckResults.Diagnostics,
+                                result.DependentFiles
                             )
+                        )
+
+                        return!
+                            loop
+                                { model with
+                                    CliArgs = result.CliArgs
+                                    Checker = result.Checker
+                                    CrackerResponse = result.CrackerResponse
+                                    SourceReader = result.SourceReader
+                                    TypeCheckProjectResult = result.TypeCheckProjectResult
+                                }
+
+                    | CompileFullProject replyChannel ->
+                        let dummyPathResolver =
+                            { new PathResolver with
+                                member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
+                                member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
+                            }
+
+                        let! result =
+                            tryCompileProject
+                                dummyPathResolver
+                                model.CliArgs
+                                model.CoolCatResolver
+                                model.CrackerResponse
+                                model.TypeCheckProjectResult
+
+                        match result with
+                        | Error error ->
+                            replyChannel.Reply (FilesCompiledResult.Error error)
+                            return! loop model
+                        | Ok result ->
+                            replyChannel.Reply (FilesCompiledResult.Success result.CompiledFSharpFiles)
 
                             return!
                                 loop
                                     { model with
-                                        CliArgs = result.CliArgs
-                                        Checker = result.Checker
-                                        CrackerResponse = result.CrackerResponse
-                                        SourceReader = result.SourceReader
-                                        PathResolver = result.PathResolver
+                                        PathResolver = dummyPathResolver
                                     }
 
                     // TODO: this probably means the file was changed as well.
@@ -205,7 +318,10 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                         match result with
                         | Error error -> replyChannel.Reply (FileChangedResult.Error error)
-                        | Ok compiledFiles -> replyChannel.Reply (FileChangedResult.Success compiledFiles)
+                        | Ok result ->
+                            replyChannel.Reply (
+                                FileChangedResult.Success (result.CompiledFiles, mapDiagnostics result.Diagnostics)
+                            )
 
                         return! loop model
                     | Disconnect -> return ()
@@ -213,12 +329,13 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
             loop
                 {
-                    ProjectCrackerResolver = CoolCatCracking.CoolCatResolver ()
+                    CoolCatResolver = CoolCatResolver ()
                     CliArgs = Unchecked.defaultof<CliArgs>
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>
                     SourceReader = Unchecked.defaultof<SourceReader>
                     PathResolver = Unchecked.defaultof<PathResolver>
+                    TypeCheckProjectResult = Unchecked.defaultof<TypeCheckProjectResult>
                 }
         )
 
@@ -239,9 +356,13 @@ type FableServer(sender : Stream, reader : Stream) as this =
     member _.Ping (_p : PingPayload) : Task<PongResponse> =
         task { return { Message = "And dotnet will answer" } }
 
-    [<JsonRpcMethod("fable/init", UseSingleObjectParameterDeserialization = true)>]
-    member _.Init (p : ProjectChangedPayload) =
+    [<JsonRpcMethod("fable/project-changed", UseSingleObjectParameterDeserialization = true)>]
+    member _.ProjectChanged (p : ProjectChangedPayload) =
         task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p, replyChannel)) }
+
+    [<JsonRpcMethod("fable/initial-compile", UseSingleObjectParameterDeserialization = true)>]
+    member _.InitialCompile () =
+        task { return! mailbox.PostAndAsyncReply Msg.CompileFullProject }
 
     [<JsonRpcMethod("fable/compile", UseSingleObjectParameterDeserialization = true)>]
     member _.CompileFile (p : CompileFilePayload) =

@@ -2,17 +2,20 @@
 #r "Fable.AST"
 #r "Fable.Compiler"
 #r "Fable.Daemon"
+#r "./bin/FSharp.Compiler.Service.dll"
 
 open System.IO
 open Fable.Compiler.Util
 open Fable.Compiler.ProjectCracker
-open Fable.Daemon.CoolCatCracking
+open Fable.Daemon
 
 fsi.AddPrinter (fun (x : ProjectOptionsResponse) ->
     $"ProjectOptionsResponse: %i{x.ProjectOptions.Length} options, %i{x.ProjectReferences.Length} references, %s{x.TargetFramework.Value}, %s{x.OutputType.Value}"
 )
 
-let fsproj = Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+let fsproj =
+    "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
+// Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
 
 let cliArgs : CliArgs =
     {
@@ -49,7 +52,7 @@ let cliArgs : CliArgs =
         Verbosity = Fable.Verbosity.Verbose
     }
 
-let options : CrackerOptions = CrackerOptions (cliArgs, false)
+let options : CrackerOptions = CrackerOptions (cliArgs, true)
 let resolver : ProjectCrackerResolver = CoolCatResolver ()
 
 #time "on"
@@ -58,7 +61,7 @@ let result = resolver.GetProjectOptionsFromProjectFile (true, options, fsproj)
 
 #time "off"
 
-result.ProjectReferences
+// result.ProjectReferences
 
 for option in result.ProjectOptions do
     printfn "%s" option

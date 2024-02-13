@@ -1,5 +1,8 @@
 root = true
 
+[*]
+end_of_line = lf
+
 [*.{fsproj,props}]
 indent_size = 2
 

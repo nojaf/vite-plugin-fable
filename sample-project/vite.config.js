@@ -9,5 +9,11 @@ const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [Inspect(), react(), fable()],
+  plugins: [react(), fable()],
+  server: {
+    //https://github.com/vitejs/vite/issues/15784
+    fs: {
+      cachedChecks: false,
+    },
+  },
 });

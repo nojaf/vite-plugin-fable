@@ -6,9 +6,11 @@
     <ItemGroup>
         <PackageVersion Include="FSharp.SystemTextJson" Version="1.2.42"/>
         <PackageVersion Include="StreamJsonRpc" Version="2.16.36"/>
-        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-004"/>
+        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-005"/>
         <PackageVersion Include="Thoth.Json.Core" Version="0.1.0"/>
+        <PackageVersion Include="protobuf-net" Version="3.2.30" />
         <!-- lock transitive dependencies -->
+        <PackageVersion Include="Fable.AST" Version="4.4.0" />
         <PackageVersion Include="System.Collections" Version="4.3.0"/>
         <PackageVersion Include="System.Diagnostics.Debug" Version="4.3.0"/>
         <PackageVersion Include="System.IO.FileSystem.Primitives" Version="4.3.0"/>
