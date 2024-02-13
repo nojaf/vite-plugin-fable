@@ -9,7 +9,7 @@
     "preview": "bunx --bun vite preview"
   },
   "dependencies": {
-    "fable-library": "^1.1.1",
+    "@fable-org/fable-library-js": "^1.0.0-beta-001",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

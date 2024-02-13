@@ -26,7 +26,7 @@
   "license": "Apache-2.0",
   "fundinding": "https://nojaf.com/",
   "dependencies": {
-    "fable-library": "^1.1.1",
+    "@fable-org/fable-library-js": "^1.0.0-beta-001",
     "ts-lsp-client": "^1.0.1",
     "vite": "^5.1.1"
   },

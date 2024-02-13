@@ -8,25 +8,32 @@ open Nerdbank.Streams
 open StreamJsonRpc
 open Fable.Daemon
 
+type Path with
+    static member CombineNormalize ([<ParamArray>] parts : string array) = Path.Combine parts |> Path.GetFullPath
+
+let fableLibrary =
+    Path.CombineNormalize (__SOURCE_DIRECTORY__, "../node_modules/@fable-org/fable-library-js")
+
 let sampleApp =
     {
-        Project = "/home/nojaf/projects/vite-plugin-fable/sample-project/App.fsproj"
-        FableLibrary = "/home/nojaf/projects/vite-plugin-fable/sample-project/node_modules/fable-library"
+        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+        FableLibrary = fableLibrary
         Configuration = "Release"
     }
 
 let telplin =
 
     {
-        Project = "/home/nojaf/projects/telplin/tool/client/OnlineTool.fsproj"
-        FableLibrary = "/home/nojaf/projects/telplin/tool/client//node_modules/fable-library"
+        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "../../telplin/tool/client/OnlineTool.fsproj")
+        FableLibrary = fableLibrary
         Configuration = "Debug"
     }
 
 let fantomasTools =
     {
-        Project = "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
-        FableLibrary = "/home/nojaf/projects/Fable/temp/fable-library"
+        Project =
+            Path.CombineNormalize (__SOURCE_DIRECTORY__, "../../fantomas-tools/src/client/fsharp/FantomasTools.fsproj")
+        FableLibrary = fableLibrary
         Configuration = "Debug"
     }
 

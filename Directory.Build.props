@@ -4,8 +4,9 @@
         <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <UseArtifactsOutput>true</UseArtifactsOutput>
-        <OtherFlags>$(OtherFlags) --test:GraphBasedChecking --test:ParallelOptimization --test:ParallelIlxGen --strict-indentation+</OtherFlags>
-        <UseLocalFableCompiler>true</UseLocalFableCompiler>
+        <NoWarn>$(NoWarn);FS0075</NoWarn>
+        <OtherFlags>$(OtherFlags) --parallelreferenceresolution --test:GraphBasedChecking --test:ParallelOptimization --test:ParallelIlxGen --strict-indentation+</OtherFlags>
+        <UseLocalFableCompiler>false</UseLocalFableCompiler>
     </PropertyGroup>
     <ItemGroup Condition="'$(UseLocalFableCompiler)' == 'true'">
         <ProjectReference Include="../../Fable/src/Fable.Compiler/Fable.Compiler.fsproj"/>

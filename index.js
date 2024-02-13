@@ -61,20 +61,18 @@ async function findFsProjFile(configDir) {
  @returns {Promise<string>}
  */
 async function getFableLibrary() {
-  return process.platform === "win32"
-    ? normalizePath("C:\\Users\\nojaf\\Projects\\Fable\\temp\\fable-library")
-    : "/home/nojaf/projects/Fable/temp/fable-library";
-  // return "/home/nojaf/projects/Fable/temp/fable-library";
-  // const fableLibraryInOwnNodeModules = path.join(
-  //   currentDir,
-  //   "node_modules/fable-library",
-  // );
-  // try {
-  //   await fs.access(fableLibraryInOwnNodeModules, fs.constants.F_OK);
-  //   return normalizePath(fableLibraryInOwnNodeModules);
-  // } catch (e) {
-  //   return normalizePath(path.join(currentDir, "../fable-library"));
-  // }
+  const fableLibraryInOwnNodeModules = path.join(
+    currentDir,
+    "node_modules/@fable-org/fable-library-js",
+  );
+  try {
+    await fs.access(fableLibraryInOwnNodeModules, fs.constants.F_OK);
+    return normalizePath(fableLibraryInOwnNodeModules);
+  } catch (e) {
+    return normalizePath(
+      path.join(currentDir, "../@fable-org/fable-library-js"),
+    );
+  }
 }
 
 /**
