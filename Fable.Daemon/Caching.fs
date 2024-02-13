@@ -233,7 +233,7 @@ let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Res
         let! json =
             MSBuild.dotnet_msbuild
                 fsproj
-                "--getProperty:MSBuildAllProjects --getProperty:IntermediateOutputPath --getProperty:MSBuildProjectExtensionsPath"
+                $"/p:Configuration=%s{options.Configuration} --getProperty:MSBuildAllProjects --getProperty:IntermediateOutputPath --getProperty:MSBuildProjectExtensionsPath"
 
         return Decode.fromString (cacheKeyDecoder options fsproj) json
     }
