@@ -3,6 +3,7 @@ module Fable.Daemon.Caching
 open System
 open System.IO
 open System.Reflection
+open System.Runtime.InteropServices
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
 open ProtoBuf
@@ -94,6 +95,8 @@ type DesignTimeBuildCache =
         [<ProtoMember(8)>]
         FableCompilerVersion : string
     }
+
+let private isWindows = RuntimeInformation.IsOSPlatform (OSPlatform.Windows)
 
 /// Save the compiler arguments results from the design time build to the intermediate folder.
 let writeDesignTimeBuild (x : CacheKey) (response : ProjectOptionsResponse) =
@@ -187,12 +190,12 @@ let private cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Dec
                 if not fi.Exists then None else Some fi
             )
 
-        // if `UseArtifactsOutput=true` then the IntermediateOutputPath the path is absolute C:\Users\nojaf\Projects\telplin\artifacts\obj\OnlineTool\debug
-        // else it is something like
+        // if `UseArtifactsOutput=true` then the IntermediateOutputPath the path is absolute "C:\Users\nojaf\Projects\telplin\artifacts\obj\OnlineTool\debug"
+        // else it is something like "obj\\Release/net7.0/", on Linux slashes can be mixed 🙃
         let intermediateOutputPath =
             let v = get.Required.At [ "Properties" ; "IntermediateOutputPath" ] Decode.string
-
-            let v = v.TrimEnd '\\'
+            let v = if isWindows then v else v.Replace ('\\', '/')
+            let v = v.TrimEnd [| '\\' ; '/' |]
             Path.Combine (fsproj.DirectoryName, v) |> Path.GetFullPath
 
         // Full path of the folder that contains the `g.props` file.
