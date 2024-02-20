@@ -238,6 +238,7 @@ export default function fablePlugin(config = {}) {
 
   return {
     name: "vite-plugin-fable",
+    enforce: "pre",
     configResolved: async function (resolvedConfig) {
       logger = resolvedConfig.logger;
       state.configuration =
