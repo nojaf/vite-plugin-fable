@@ -1,0 +1,75 @@
+---
+index: 4
+categoryindex: 1
+category: docs
+---
+
+# Recipes
+
+There are a few things you can configure in the plugin configuration.
+
+## Alternative fsproj
+
+By default, the plugin will look for a single `.fsproj` file inside the folder that holds your `vite.config.js` file.
+If you deviate from this setup you can specify the entry `fsproj` file:
+
+```js
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite";
+import fable from "vite-plugin-fable";
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const fsproj = path.join(currentDir, "fsharp/FantomasTools.fsproj");
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [fable({ fsproj })],
+});
+```
+
+## Using React
+
+There are a couple of ways to deal with React and JSX in Fable.
+
+### Feliz.CompilerPlugins
+
+If you are using [Feliz.CompilerPlugins](https://www.nuget.org/packages/Feliz.CompilerPlugins), Fable output React Classic Runtime code.  
+Stuff like `React.createElement`. You will need to tailor your `@vitejs/plugin-react` accordingly:
+
+```js
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import fable from "vite-plugin-fable";
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    fable(),
+    react({ include: /\.(fs|js|jsx|ts|tsx)$/, jsxRuntime: "classic" }),
+  ],
+});
+```
+
+Note that the `react` plugin will only apply the fast-refresh wrapper when you specify the `fs` extension in the `include`.
+
+### Fable.Core.JSX
+
+Fable can also produce JSX (see [blog](https://fable.io/blog/2022/2022-10-12-react-jsx.html)). In this case, you need to tell the `fable` plugin it should transform the JSX using Babel.
+The `@vitejs/plugin-react` won't interact with any `.fs` files, so that transformation needs to happen in the `fable` plugin:
+
+```js
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import fable from "vite-plugin-fable";
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    fable({ jsxRuntime: "automatic" }),
+    react({ include: /\.(fs|js|jsx|ts|tsx)$/ }),
+  ],
+});
+```
+
+Note that you will still need to tweak the `react` plugin with `include` to enable the fast refresh transformation.
