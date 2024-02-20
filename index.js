@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
+import babelCore from "@babel/core";
 import colors from "picocolors";
 
 /**
@@ -214,6 +215,7 @@ async function compileProject(addWatchFile, logger, state) {
 /**
  * @typedef {Object} PluginOptions
  * @property {string} [fsproj] - The main fsproj to load
+ * @property {'classic' | 'automatic' | null} [jsxRuntime] - Does the Fable compiled JavaScript have JSX?
  */
 
 /**
@@ -222,7 +224,7 @@ async function compileProject(addWatchFile, logger, state) {
  * @description Initializes and returns a Vite plugin for to process the incoming F# project.
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
-export default function fablePlugin(config = {}) {
+export default function fablePlugin(config = { jsxRuntime: null }) {
   /** @type {PluginState} */
   const state = {
     compilableFiles: new Map(),
@@ -285,8 +287,25 @@ export default function fablePlugin(config = {}) {
       if (fsharpFileRegex.test(id)) {
         logger.info(`[fable] transform: ${id}`, { timestamp: true });
         if (state.compilableFiles.has(id)) {
+          let code = state.compilableFiles.get(id);
+          // If Fable outputted JSX, we still need to transform this.
+          // @vitejs/plugin-react would not pick this up.
+          if (config.jsxRuntime) {
+            let babelResult = babelCore.transformSync(code, {
+              presets: [
+                [
+                  "@babel/preset-react",
+                  {
+                    runtime: config.jsxRuntime,
+                    development: state.configuration === "Debug",
+                  },
+                ],
+              ],
+            });
+            code = babelResult.code;
+          }
           return {
-            code: state.compilableFiles.get(id),
+            code: code,
             map: null,
           };
         } else {
