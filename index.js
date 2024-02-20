@@ -81,15 +81,25 @@ async function getFableLibrary() {
  * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {string} configuration - Release or Debug
  * @param {string} project - The name or path of the project.
+ * @param {string[]} exclude - Excluded projects
+ * @param {Boolean} noReflection - Disable reflection
  * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
-async function getProjectFile(fableLibrary, configuration, project) {
+async function getProjectFile(
+  fableLibrary,
+  configuration,
+  project,
+  exclude,
+  noReflection,
+) {
   /** @type {FSharpDiscriminatedUnion} */
   const result = await endpoint.send("fable/project-changed", {
     configuration,
     project,
     fableLibrary,
+    exclude,
+    noReflection,
   });
 
   if (result.case === "Success") {
@@ -168,9 +178,10 @@ function logDiagnostics(logger, diagnostics) {
  * @param {function} addWatchFile
  * @param {import('vite').Logger} logger
  * @param {PluginState} state
+ * @param {PluginOptions} config
  * @returns {Promise}
  */
-async function compileProject(addWatchFile, logger, state) {
+async function compileProject(addWatchFile, logger, state, config) {
   logger.info(colors.blue(`[fable] Full compile started of ${state.fsproj}`), {
     timestamp: true,
   });
@@ -188,6 +199,8 @@ async function compileProject(addWatchFile, logger, state) {
     fableLibrary,
     state.configuration,
     state.fsproj,
+    config.exclude,
+    config.noReflection,
   );
   logger.info(colors.blue(`[buildStart] ${state.fsproj} was type-checked.`), {
     timestamp: true,
@@ -216,6 +229,8 @@ async function compileProject(addWatchFile, logger, state) {
  * @typedef {Object} PluginOptions
  * @property {string} [fsproj] - The main fsproj to load
  * @property {'classic' | 'automatic' | null} [jsxRuntime] - Does the Fable compiled JavaScript have JSX?
+ * @property {Boolean} [noReflection] - Pass noReflection value to Fable.Compiler
+ * @property {string[]} [exclude] - Pass exclude to Fable.Compiler
  */
 
 /**
@@ -224,7 +239,9 @@ async function compileProject(addWatchFile, logger, state) {
  * @description Initializes and returns a Vite plugin for to process the incoming F# project.
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
-export default function fablePlugin(config = { jsxRuntime: null }) {
+export default function fablePlugin(
+  config = { jsxRuntime: null, noReflection: false, exclude: [] },
+) {
   /** @type {PluginState} */
   const state = {
     compilableFiles: new Map(),
@@ -273,7 +290,12 @@ export default function fablePlugin(config = { jsxRuntime: null }) {
     },
     buildStart: async function (options) {
       try {
-        await compileProject(this.addWatchFile.bind(this), logger, state);
+        await compileProject(
+          this.addWatchFile.bind(this),
+          logger,
+          state,
+          config,
+        );
       } catch (e) {
         logger.error(
           colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
@@ -328,7 +350,12 @@ export default function fablePlugin(config = { jsxRuntime: null }) {
             );
             state.compilableFiles.clear();
             state.dependentFiles.clear();
-            await compileProject(this.addWatchFile.bind(this), logger, state);
+            await compileProject(
+              this.addWatchFile.bind(this),
+              logger,
+              state,
+              config,
+            );
             return;
           } catch (e) {
             logger.error(

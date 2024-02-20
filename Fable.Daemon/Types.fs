@@ -8,12 +8,16 @@ type JavaScript = string
 
 type ProjectChangedPayload =
     {
-        /// Release or Debug
+        /// Release or Debug.
         Configuration : string
-        /// Absolute path of fsproj
+        /// Absolute path of fsproj.
         Project : FullPath
-        /// Absolute path of fable-library. Typically found in the npm modules
+        /// Absolute path of fable-library. Typically found in the npm modules.
         FableLibrary : FullPath
+        /// Which project should be excluded? Used when you are testing a local plugin.
+        Exclude : string array
+        /// Don't emit JavaScript reflection code.
+        NoReflection : bool
     }
 
 type DiagnosticRange =

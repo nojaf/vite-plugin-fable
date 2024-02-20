@@ -19,14 +19,17 @@ let sampleApp =
         Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
         FableLibrary = fableLibrary
         Configuration = "Release"
+        Exclude = Array.empty
+        NoReflection = false
     }
 
 let telplin =
-
     {
         Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "../../telplin/tool/client/OnlineTool.fsproj")
         FableLibrary = fableLibrary
         Configuration = "Debug"
+        Exclude = Array.empty
+        NoReflection = false
     }
 
 let fantomasTools =
@@ -35,12 +38,23 @@ let fantomasTools =
             Path.CombineNormalize (__SOURCE_DIRECTORY__, "../../fantomas-tools/src/client/fsharp/FantomasTools.fsproj")
         FableLibrary = fableLibrary
         Configuration = "Debug"
+        Exclude = Array.empty
+        NoReflection = false
+    }
+
+let ronnies =
+    {
+        Project = @"C:\Users\nojaf\Projects\ronnies.be\app\App.fsproj"
+        FableLibrary = fableLibrary
+        Configuration = "Debug"
+        Exclude = [| "Nojaf.Fable.React.Plugin" |]
+        NoReflection = true
     }
 
 [<Test>]
 let DebugTest () =
     task {
-        let config = fantomasTools
+        let config = ronnies
         Directory.SetCurrentDirectory (FileInfo(config.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()

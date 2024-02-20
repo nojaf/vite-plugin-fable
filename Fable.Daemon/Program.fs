@@ -67,7 +67,7 @@ let tryTypeCheckProject
                     NoParallelTypeCheck = false
                     SourceMaps = false
                     SourceMapsRoot = None
-                    Exclude = []
+                    Exclude = List.ofArray payload.Exclude
                     Replace = Map.empty
                     CompilerOptions =
                         {
@@ -81,7 +81,7 @@ let tryTypeCheckProject
                             // We keep using `.fs` for the compiled FSharp file, even though the contents will be JavaScript.
                             FileExtension = ".fs"
                             TriggeredByDependency = false
-                            NoReflection = false
+                            NoReflection = payload.NoReflection
                         }
                     RunProcess = None
                     Verbosity = Verbosity.Normal
