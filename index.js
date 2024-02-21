@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
-import babelCore from "@babel/core";
+import { transform } from "esbuild";
 import colors from "picocolors";
 
 /**
@@ -228,20 +228,23 @@ async function compileProject(addWatchFile, logger, state, config) {
 /**
  * @typedef {Object} PluginOptions
  * @property {string} [fsproj] - The main fsproj to load
- * @property {'classic' | 'automatic' | null} [jsxRuntime] - Does the Fable compiled JavaScript have JSX?
+ * @property {'transform' | 'preserve' | 'automatic' | null} [jsx] - Apply JSX transformation after Fable compilation: https://esbuild.github.io/api/#transformation
  * @property {Boolean} [noReflection] - Pass noReflection value to Fable.Compiler
  * @property {string[]} [exclude] - Pass exclude to Fable.Compiler
  */
 
+/** @type {PluginOptions} */
+const defaultConfig = { jsx: null, noReflection: false, exclude: [] };
+
 /**
  * @function
- * @param {PluginOptions} config - The options for configuring the plugin.
+ * @param {PluginOptions} userConfig - The options for configuring the plugin.
  * @description Initializes and returns a Vite plugin for to process the incoming F# project.
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
-export default function fablePlugin(
-  config = { jsxRuntime: null, noReflection: false, exclude: [] },
-) {
+export default function fablePlugin(userConfig) {
+  /** @type {PluginOptions} */
+  const config = Object.assign({}, defaultConfig, userConfig);
   /** @type {PluginState} */
   const state = {
     compilableFiles: new Map(),
@@ -305,26 +308,19 @@ export default function fablePlugin(
         );
       }
     },
-    transform(src, id) {
+    transform: async function (src, id) {
       if (fsharpFileRegex.test(id)) {
         logger.info(`[fable] transform: ${id}`, { timestamp: true });
         if (state.compilableFiles.has(id)) {
           let code = state.compilableFiles.get(id);
           // If Fable outputted JSX, we still need to transform this.
-          // @vitejs/plugin-react would not pick this up.
-          if (config.jsxRuntime) {
-            let babelResult = babelCore.transformSync(code, {
-              presets: [
-                [
-                  "@babel/preset-react",
-                  {
-                    runtime: config.jsxRuntime,
-                    development: state.configuration === "Debug",
-                  },
-                ],
-              ],
+          // @vitejs/plugin-react does not do this.
+          if (config.jsx) {
+            const esbuildResult = await transform(code, {
+              loader: "jsx",
+              jsx: config.jsx,
             });
-            code = babelResult.code;
+            code = esbuildResult.code;
           }
           return {
             code: code,

@@ -68,7 +68,8 @@ import fable from "vite-plugin-fable";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    fable({ jsxRuntime: "automatic" }),
+    // See `jsx` option from https://esbuild.github.io/api/#transformation
+    fable({ jsx: "automatic" }),
     react({ include: /\.(fs|js|jsx|ts|tsx)$/ }),
   ],
 });
