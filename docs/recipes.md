@@ -32,6 +32,8 @@ export default defineConfig({
 
 There are a couple of ways to deal with React and JSX in Fable.
 
+⚠️ When using the `vite-plugin-fable` in combination with `@vitejs/plugin-react`, you do want to specify the fable plugin first! ⚠️
+
 ### Feliz.CompilerPlugins
 
 If you are using [Feliz.CompilerPlugins](https://www.nuget.org/packages/Feliz.CompilerPlugins), Fable output React Classic Runtime code.  
