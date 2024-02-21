@@ -12,12 +12,11 @@ Assuming you have an existing `fsproj`, with all your code and F# dependencies, 
 
 ```js
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import fable from "vite-plugin-fable";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), fable()],
+  plugins: [fable()],
 });
 ```
 
@@ -35,7 +34,7 @@ The index.html needs to import an F# file to the plugin to process:
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>Vite + Fable</title>
   </head>
   <body>
     <script type="module">
