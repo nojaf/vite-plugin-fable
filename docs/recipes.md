@@ -76,3 +76,5 @@ export default defineConfig({
 ```
 
 Note that you will still need to tweak the `react` plugin with `include` to enable the fast refresh transformation.
+
+[Next]({{fsdocs-next-page-link}})
