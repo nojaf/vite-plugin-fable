@@ -51,9 +51,12 @@ let tryTypeCheckProject
     =
     async {
         try
+            /// Project file will be in the Vite normalized format
+            let projectFile = Path.GetFullPath payload.Project
+
             let cliArgs : CliArgs =
                 {
-                    ProjectFile = payload.Project
+                    ProjectFile = projectFile
                     RootDir = Path.GetDirectoryName payload.Project
                     OutDir = None
                     IsWatch = false
@@ -100,7 +103,7 @@ let tryTypeCheckProject
             let! typeCheckResult = CodeServices.typeCheckProject sourceReader checker cliArgs crackerResponse
 
             let dependentFiles =
-                crackerResolver.MSBuildProjectFiles crackerResponse.ProjectOptions.ProjectFileName
+                crackerResolver.MSBuildProjectFiles projectFile
                 |> List.map (fun fi -> fi.FullName)
                 |> List.toArray
 
