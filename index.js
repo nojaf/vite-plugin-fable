@@ -221,7 +221,8 @@ async function compileProject(addWatchFile, logger, state, config) {
   );
   state.projectOptions.sourceFiles.forEach((file) => {
     addWatchFile(file);
-    state.compilableFiles.set(file, compiledFSharpFiles[file]);
+    const normalizedFileName = normalizePath(file);
+    state.compilableFiles.set(normalizedFileName, compiledFSharpFiles[file]);
   });
 }
 
@@ -379,11 +380,12 @@ export default function fablePlugin(userConfig) {
               logDiagnostics(logger, diagnostics);
               const loadPromises = Object.keys(compiledFSharpFiles).map(
                 (fsFile) => {
+                  const normalizedFileName = normalizePath(fsFile);
                   state.compilableFiles.set(
-                    fsFile,
+                    normalizedFileName,
                     compiledFSharpFiles[fsFile],
                   );
-                  return this.load({ id: fsFile });
+                  return this.load({ id: normalizedFileName });
                 },
               );
               await Promise.all(loadPromises);
