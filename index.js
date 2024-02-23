@@ -263,196 +263,204 @@ export default function fablePlugin(userConfig) {
     name: "vite-plugin-fable",
     enforce: "pre",
     configResolved: async function (resolvedConfig) {
-      logger = resolvedConfig.logger;
-      state.configuration =
-        resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
-      logger.info(
-        colors.blue(`[fable] Configuration: ${state.configuration}`),
-        {
-          timestamp: true,
-        },
-      );
-
-      const configDir = path.dirname(resolvedConfig.configFile);
-
-      if (config && config.fsproj) {
-        state.fsproj = config.fsproj;
-      } else {
-        state.fsproj = await findFsProjFile(configDir);
-      }
-
-      if (!state.fsproj) {
-        logger.error(
-          colors.red(`[fable] No .fsproj file was found in ${configDir}`),
-          { timestamp: true },
-        );
-      } else {
-        logger.info(colors.blue(`[fable] Entry fsproj ${state.fsproj}`), {
-          timestamp: true,
-        });
-      }
+      // logger = resolvedConfig.logger;
+      // state.configuration =
+      //   resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
+      // logger.info(
+      //   colors.blue(`[fable] Configuration: ${state.configuration}`),
+      //   {
+      //     timestamp: true,
+      //   },
+      // );
+      //
+      // const configDir = path.dirname(resolvedConfig.configFile);
+      //
+      // if (config && config.fsproj) {
+      //   state.fsproj = config.fsproj;
+      // } else {
+      //   state.fsproj = await findFsProjFile(configDir);
+      // }
+      //
+      // if (!state.fsproj) {
+      //   logger.error(
+      //     colors.red(`[fable] No .fsproj file was found in ${configDir}`),
+      //     { timestamp: true },
+      //   );
+      // } else {
+      //   logger.info(colors.blue(`[fable] Entry fsproj ${state.fsproj}`), {
+      //     timestamp: true,
+      //   });
+      // }
     },
     buildStart: async function (options) {
-      try {
-        await compileProject(
-          this.addWatchFile.bind(this),
-          logger,
-          state,
-          config,
-        );
-      } catch (e) {
-        logger.error(
-          colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
-          {
-            timestamp: true,
-          },
-        );
-      }
+      // try {
+      //   await compileProject(
+      //     this.addWatchFile.bind(this),
+      //     logger,
+      //     state,
+      //     config,
+      //   );
+      // } catch (e) {
+      //   logger.error(
+      //     colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
+      //     {
+      //       timestamp: true,
+      //     },
+      //   );
+      // }
     },
     transform: async function (src, id) {
-      if (fsharpFileRegex.test(id)) {
-        logger.info(`[fable] transform: ${id}`, { timestamp: true });
-        if (state.compilableFiles.has(id)) {
-          let code = state.compilableFiles.get(id);
-          // If Fable outputted JSX, we still need to transform this.
-          // @vitejs/plugin-react does not do this.
-          if (config.jsx) {
-            const esbuildResult = await transform(code, {
-              loader: "jsx",
-              jsx: config.jsx,
-            });
-            code = esbuildResult.code;
-          }
-          return {
-            code: code,
-            map: null,
-          };
-        } else {
-          logger.warn(
-            colors.yellow(
-              `[fable] transform: ${id} is not part of compilableFiles`,
-            ),
-            { timestamp: true },
-          );
-        }
+      if (/\.fsx$/.test(id)) {
+        console.log(`Should transform ${id}`);
+        const result = await endpoint.send("fable/script", { id });
+        console.log("result", result);
+        return {
+          code: result.code,
+        };
       }
+      // if (fsharpFileRegex.test(id)) {
+      //   logger.info(`[fable] transform: ${id}`, { timestamp: true });
+      //   if (state.compilableFiles.has(id)) {
+      //     let code = state.compilableFiles.get(id);
+      //     // If Fable outputted JSX, we still need to transform this.
+      //     // @vitejs/plugin-react does not do this.
+      //     if (config.jsx) {
+      //       const esbuildResult = await transform(code, {
+      //         loader: "jsx",
+      //         jsx: config.jsx,
+      //       });
+      //       code = esbuildResult.code;
+      //     }
+      //     return {
+      //       code: code,
+      //       map: null,
+      //     };
+      //   } else {
+      //     logger.warn(
+      //       colors.yellow(
+      //         `[fable] transform: ${id} is not part of compilableFiles`,
+      //       ),
+      //       { timestamp: true },
+      //     );
+      //   }
+      // }
     },
     watchChange: async function (id, change) {
-      if (state.projectOptions) {
-        if (state.dependentFiles.has(id)) {
-          try {
-            logger.info(
-              colors.blue(`[fable] watch: dependent file ${id} changed.`),
-              { timestamp: true },
-            );
-            state.compilableFiles.clear();
-            state.dependentFiles.clear();
-            await compileProject(
-              this.addWatchFile.bind(this),
-              logger,
-              state,
-              config,
-            );
-            return;
-          } catch (e) {
-            logger.error(
-              colors.red(
-                `[fable] Unexpected failure during watchChange for ${id}`,
-              ),
-              { timestamp: true },
-            );
-          }
-        } else if (fsharpFileRegex.test(id)) {
-          logger.info(`[fable] watch: ${id} changed`);
-          try {
-            /** @type {FSharpDiscriminatedUnion} */
-            const compilationResult = await endpoint.send("fable/compile", {
-              fileName: id,
-            });
-            if (
-              compilationResult.case === "Success" &&
-              compilationResult.fields &&
-              compilationResult.fields.length > 0
-            ) {
-              logger.info(`[fable] watch: ${id} compiled`);
-              const compiledFSharpFiles = compilationResult.fields[0];
-              const diagnostics = compilationResult.fields[1];
-              logDiagnostics(logger, diagnostics);
-              const loadPromises = Object.keys(compiledFSharpFiles).map(
-                (fsFile) => {
-                  const normalizedFileName = normalizePath(fsFile);
-                  state.compilableFiles.set(
-                    normalizedFileName,
-                    compiledFSharpFiles[fsFile],
-                  );
-                  return this.load({ id: normalizedFileName });
-                },
-              );
-              await Promise.all(loadPromises);
-              return;
-            } else {
-              logger.error(
-                colors.red(
-                  `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
-                ),
-                { timestamp: true },
-              );
-            }
-          } catch (e) {
-            logger.error(
-              colors.red(
-                `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
-              ),
-              { timestamp: true },
-            );
-          }
-        }
-      }
+      // if (state.projectOptions) {
+      //   if (state.dependentFiles.has(id)) {
+      //     try {
+      //       logger.info(
+      //         colors.blue(`[fable] watch: dependent file ${id} changed.`),
+      //         { timestamp: true },
+      //       );
+      //       state.compilableFiles.clear();
+      //       state.dependentFiles.clear();
+      //       await compileProject(
+      //         this.addWatchFile.bind(this),
+      //         logger,
+      //         state,
+      //         config,
+      //       );
+      //       return;
+      //     } catch (e) {
+      //       logger.error(
+      //         colors.red(
+      //           `[fable] Unexpected failure during watchChange for ${id}`,
+      //         ),
+      //         { timestamp: true },
+      //       );
+      //     }
+      //   } else if (fsharpFileRegex.test(id)) {
+      //     logger.info(`[fable] watch: ${id} changed`);
+      //     try {
+      //       /** @type {FSharpDiscriminatedUnion} */
+      //       const compilationResult = await endpoint.send("fable/compile", {
+      //         fileName: id,
+      //       });
+      //       if (
+      //         compilationResult.case === "Success" &&
+      //         compilationResult.fields &&
+      //         compilationResult.fields.length > 0
+      //       ) {
+      //         logger.info(`[fable] watch: ${id} compiled`);
+      //         const compiledFSharpFiles = compilationResult.fields[0];
+      //         const diagnostics = compilationResult.fields[1];
+      //         logDiagnostics(logger, diagnostics);
+      //         const loadPromises = Object.keys(compiledFSharpFiles).map(
+      //           (fsFile) => {
+      //             const normalizedFileName = normalizePath(fsFile);
+      //             state.compilableFiles.set(
+      //               normalizedFileName,
+      //               compiledFSharpFiles[fsFile],
+      //             );
+      //             return this.load({ id: normalizedFileName });
+      //           },
+      //         );
+      //         await Promise.all(loadPromises);
+      //         return;
+      //       } else {
+      //         logger.error(
+      //           colors.red(
+      //             `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
+      //           ),
+      //           { timestamp: true },
+      //         );
+      //       }
+      //     } catch (e) {
+      //       logger.error(
+      //         colors.red(
+      //           `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
+      //         ),
+      //         { timestamp: true },
+      //       );
+      //     }
+      //   }
+      // }
     },
     handleHotUpdate: function ({ file, server, modules }) {
-      function hotUpdateFiles(sourceFiles) {
-        const modulesToCompile = [];
-        for (const sourceFile of sourceFiles) {
-          const module = server.moduleGraph.getModuleById(sourceFile);
-          if (module) {
-            modulesToCompile.push(module);
-          } else {
-            logger.warn(`[handleHotUpdate] No module found for ${sourceFile}`);
-          }
-        }
-        if (modulesToCompile.length > 0) {
-          logger.info(
-            `[handleHotUpdate] about to send HMR update (${modulesToCompile.length}) to client.`,
-          );
-          server.ws.send({
-            type: "custom",
-            event: "hot-update-dependents",
-            data: modulesToCompile.map(({ url }) => url),
-          });
-          return modulesToCompile;
-        } else {
-          return modules;
-        }
-      }
-
-      if (
-        state.projectOptions &&
-        state.projectOptions.sourceFiles &&
-        fsharpFileRegex.test(file)
-      ) {
-        logger.info(`[handleHotUpdate] ${file}`);
-        const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
-        const sourceFiles = state.projectOptions.sourceFiles.filter(
-          (f, idx) => idx >= fileIdx,
-        );
-        return hotUpdateFiles(sourceFiles);
-      } else if (state.projectOptions && state.dependentFiles.has(file)) {
-        logger.info(colors.green(`[handleHotUpdate] ${file}`), {
-          timestamp: true,
-        });
-        const sourceFiles = state.projectOptions.sourceFiles;
-        return hotUpdateFiles(sourceFiles);
-      }
+      // function hotUpdateFiles(sourceFiles) {
+      //   const modulesToCompile = [];
+      //   for (const sourceFile of sourceFiles) {
+      //     const module = server.moduleGraph.getModuleById(sourceFile);
+      //     if (module) {
+      //       modulesToCompile.push(module);
+      //     } else {
+      //       logger.warn(`[handleHotUpdate] No module found for ${sourceFile}`);
+      //     }
+      //   }
+      //   if (modulesToCompile.length > 0) {
+      //     logger.info(
+      //       `[handleHotUpdate] about to send HMR update (${modulesToCompile.length}) to client.`,
+      //     );
+      //     server.ws.send({
+      //       type: "custom",
+      //       event: "hot-update-dependents",
+      //       data: modulesToCompile.map(({ url }) => url),
+      //     });
+      //     return modulesToCompile;
+      //   } else {
+      //     return modules;
+      //   }
+      // }
+      //
+      // if (
+      //   state.projectOptions &&
+      //   state.projectOptions.sourceFiles &&
+      //   fsharpFileRegex.test(file)
+      // ) {
+      //   logger.info(`[handleHotUpdate] ${file}`);
+      //   const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
+      //   const sourceFiles = state.projectOptions.sourceFiles.filter(
+      //     (f, idx) => idx >= fileIdx,
+      //   );
+      //   return hotUpdateFiles(sourceFiles);
+      // } else if (state.projectOptions && state.dependentFiles.has(file)) {
+      //   logger.info(colors.green(`[handleHotUpdate] ${file}`), {
+      //     timestamp: true,
+      //   });
+      //   const sourceFiles = state.projectOptions.sourceFiles;
+      //   return hotUpdateFiles(sourceFiles);
+      // }
     },
     buildEnd: () => {
       dotnetProcess.kill();
