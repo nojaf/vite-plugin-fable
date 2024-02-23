@@ -16,5 +16,6 @@
     <ItemGroup>
         <Compile Include="Math.fs"/>
         <Compile Include="Library.fs"/>
+        <None Include="script.fsx" />
     </ItemGroup>
 </Project>

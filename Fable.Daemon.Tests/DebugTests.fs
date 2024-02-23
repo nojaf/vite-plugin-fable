@@ -16,7 +16,7 @@ let fableLibrary =
 
 let sampleApp =
     {
-        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "../sample-project/App.fsproj")
         FableLibrary = fableLibrary
         Configuration = "Release"
         Exclude = Array.empty
@@ -54,7 +54,7 @@ let ronnies =
 [<Test>]
 let DebugTest () =
     task {
-        let config = ronnies
+        let config = sampleApp
         Directory.SetCurrentDirectory (FileInfo(config.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
@@ -62,11 +62,13 @@ let DebugTest () =
         let client = new JsonRpc (clientStream, clientStream)
         client.StartListening ()
 
-        let! typecheckResponse = daemon.ProjectChanged config
-        ignore typecheckResponse
-        let! initialCompile = daemon.InitialCompile ()
+        let! result =
+            daemon.CompileScript (
+                {|
+                    id = @"C:\Users\nojaf\Projects\vite-plugin-fable\sample-project\script.fsx"
+                |}
+            )
 
-        printfn "response: %A" initialCompile
         client.Dispose ()
         (daemon :> IDisposable).Dispose ()
 

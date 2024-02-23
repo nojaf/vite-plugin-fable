@@ -371,6 +371,63 @@ type FableServer(sender : Stream, reader : Stream) as this =
     member _.CompileFile (p : CompileFilePayload) =
         task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.CompileFile (p.FileName, replyChannel)) }
 
+    [<JsonRpcMethod("fable/script", UseSingleObjectParameterDeserialization = true)>]
+    member _.CompileScript (p : {| id : string |}) =
+        task {
+            let scriptFilePath = System.IO.Path.GetFullPath p.id
+            let resolver = CoolCatResolver ()
+
+            let payload : ProjectChangedPayload =
+                {
+                    Configuration = "Debug"
+                    Project = scriptFilePath
+                    FableLibrary = @"C:\Users\nojaf\Projects\vite-plugin-fable\node_modules\@fable-org\fable-library-js"
+                    Exclude = Array.empty
+                    NoReflection = true
+                }
+
+            let! tcResult = tryTypeCheckProject resolver payload
+
+            let tcResult =
+                match tcResult with
+                | Ok resultValue -> resultValue
+                | Error errorValue -> failwith "todo"
+
+            // let sourceReader =
+            //         Fable.Compiler.File.MakeSourceReader (
+            //             Array.map Fable.Compiler.File tcResult.CrackerResponse.ProjectOptions.SourceFiles
+            //         )
+            //         |> snd
+
+            let dummyPathResolver =
+                { new PathResolver with
+                    member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
+                    member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
+                }
+
+            let model : Model =
+                {
+                    CoolCatResolver = resolver
+                    CliArgs = tcResult.CliArgs
+                    Checker = tcResult.Checker
+                    CrackerResponse = tcResult.CrackerResponse
+                    SourceReader = tcResult.SourceReader
+                    PathResolver = dummyPathResolver
+                    TypeCheckProjectResult = tcResult.TypeCheckProjectResult
+                }
+
+            let! jsResult = tryCompileFile model scriptFilePath
+
+            let code =
+                match jsResult with
+                | Error e -> "failure"
+                | Ok result ->
+                    let firstKey = Seq.head result.CompiledFiles.Keys
+                    result.CompiledFiles.Item firstKey
+
+            return {| code = code |}
+        }
+
 let input = Console.OpenStandardInput ()
 let output = Console.OpenStandardOutput ()
 
