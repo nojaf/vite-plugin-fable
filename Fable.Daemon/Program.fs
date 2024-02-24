@@ -6,6 +6,7 @@ open System.Text.Json
 open System.Text.Json.Serialization
 open System.Threading.Tasks
 open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Abstractions
 open StreamJsonRpc
 open Fable
 open FSharp.Compiler.CodeAnalysis
@@ -33,10 +34,16 @@ type Model =
         TypeCheckProjectResult : TypeCheckProjectResult
     }
 
-// TODO: if env var...
-let logger = Debug.InMemoryLogger ()
+let logger : ILogger =
+    let envVar = Environment.GetEnvironmentVariable "VITE_PLUGIN_FABLE_DEBUG"
+
+    if not (String.IsNullOrWhiteSpace envVar) && not (envVar = "0") then
+        Debug.InMemoryLogger ()
+    else
+        NullLogger.Instance
+
 // Set Fable logger
-Log.setLogger Verbosity.Verbose (logger :> ILogger)
+Log.setLogger Verbosity.Verbose logger
 
 let timeAsync f =
     async {
@@ -270,8 +277,11 @@ type FableServer(sender : Stream, reader : Stream) as this =
     let cts = new CancellationTokenSource ()
 
     do
-        let server = Debug.startWebserver logger cts.Token
-        Async.Start (server, cts.Token)
+        match logger with
+        | :? Debug.InMemoryLogger as logger ->
+            let server = Debug.startWebserver logger cts.Token
+            Async.Start (server, cts.Token)
+        | _ -> ()
 
     let handler =
         new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)
