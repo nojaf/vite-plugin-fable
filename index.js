@@ -45,12 +45,6 @@ if (process.env.VITE_PLUGIN_FABLE_DEBUG) {
   );
 }
 
-const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
-  shell: true,
-  stdio: "pipe",
-});
-const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
-
 /**
  @param {string} configDir - Folder path of the vite.config.js file.
  */
@@ -86,27 +80,18 @@ async function getFableLibrary() {
 /**
  * Retrieves the project file. At this stage the project is type-checked but Fable did not compile anything.
  * @param {string} fableLibrary - Location of the fable-library node module.
- * @param {string} configuration - Release or Debug
- * @param {string} project - The name or path of the project.
- * @param {string[]} exclude - Excluded projects
- * @param {Boolean} noReflection - Disable reflection
+ * @param {PluginState} state
  * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
-async function getProjectFile(
-  fableLibrary,
-  configuration,
-  project,
-  exclude,
-  noReflection,
-) {
+async function getProjectFile(fableLibrary, state) {
   /** @type {FSharpDiscriminatedUnion} */
-  const result = await endpoint.send("fable/project-changed", {
-    configuration,
-    project,
+  const result = await state.endpoint.send("fable/project-changed", {
+    configuration: state.configuration,
+    project: state.fsproj,
     fableLibrary,
-    exclude,
-    noReflection,
+    exclude: state.config.exclude,
+    noReflection: state.config.noReflection,
   });
 
   if (result.case === "Success") {
@@ -124,11 +109,12 @@ async function getProjectFile(
  * Try and compile the entire project using Fable. The daemon contains all the information at this point to do this.
  * No need to pass any additional info.
  * @returns {Promise<Map<string, string>>} A promise that resolves a map of compiled files.
+ * @param {PluginState} state
  * @throws {Error} If the result from the endpoint is not a success case.
  */
-async function tryInitialCompile() {
+async function tryInitialCompile(state) {
   /** @type {FSharpDiscriminatedUnion} */
-  const result = await endpoint.send("fable/initial-compile");
+  const result = await state.endpoint.send("fable/initial-compile");
 
   if (result.case === "Success") {
     return result.fields[0];
@@ -172,6 +158,10 @@ function logDiagnostics(logger, diagnostics) {
 }
 
 /** @typedef {Object} PluginState
+ * @property {PluginOptions} config
+ * @property {import('vite').Logger} logger
+ * @property {import("node:child_process").ChildProcessWithoutNullStreams|null} dotnetProcess
+ * @property {JSONRPCEndpoint|null} endpoint
  * @property {Map<string, string>} compilableFiles
  * @property {FSharpProjectOptions|null} projectOptions
  * @property {string|null} fsproj
@@ -183,36 +173,37 @@ function logDiagnostics(logger, diagnostics) {
  * Does a type-check and compilation of the state.fsproj
  * @function
  * @param {function} addWatchFile
- * @param {import('vite').Logger} logger
  * @param {PluginState} state
- * @param {PluginOptions} config
  * @returns {Promise}
  */
-async function compileProject(addWatchFile, logger, state, config) {
-  logger.info(colors.blue(`[fable] Full compile started of ${state.fsproj}`), {
-    timestamp: true,
-  });
+async function compileProject(addWatchFile, state) {
+  state.logger.info(
+    colors.blue(`[fable] Full compile started of ${state.fsproj}`),
+    {
+      timestamp: true,
+    },
+  );
   const fableLibrary = await getFableLibrary();
-  logger.info(colors.blue(`[fable] fable-library located at ${fableLibrary}`), {
-    timestamp: true,
-  });
-  logger.info(
+  state.logger.info(
+    colors.blue(`[fable] fable-library located at ${fableLibrary}`),
+    {
+      timestamp: true,
+    },
+  );
+  state.logger.info(
     colors.blue(`[buildStart] about to type-checked ${state.fsproj}.`),
     {
       timestamp: true,
     },
   );
-  const projectResponse = await getProjectFile(
-    fableLibrary,
-    state.configuration,
-    state.fsproj,
-    config.exclude,
-    config.noReflection,
+  const projectResponse = await getProjectFile(fableLibrary, state);
+  state.logger.info(
+    colors.blue(`[buildStart] ${state.fsproj} was type-checked.`),
+    {
+      timestamp: true,
+    },
   );
-  logger.info(colors.blue(`[buildStart] ${state.fsproj} was type-checked.`), {
-    timestamp: true,
-  });
-  logDiagnostics(logger, projectResponse.diagnostics);
+  logDiagnostics(state.logger, projectResponse.diagnostics);
   state.projectOptions = projectResponse.projectOptions;
 
   for (let dependentFile of projectResponse.dependentFiles) {
@@ -221,8 +212,8 @@ async function compileProject(addWatchFile, logger, state, config) {
     addWatchFile(dependentFile);
   }
 
-  const compiledFSharpFiles = await tryInitialCompile();
-  logger.info(
+  const compiledFSharpFiles = await tryInitialCompile(state);
+  state.logger.info(
     colors.blue(`[buildStart] Full compile completed of ${state.fsproj}`),
     { timestamp: true },
   );
@@ -234,24 +225,33 @@ async function compileProject(addWatchFile, logger, state, config) {
 }
 
 /**
+ * @typedef {Object} PluginOptions
+ * @property {string} [fsproj] - The main fsproj to load
+ * @property {'transform' | 'preserve' | 'automatic' | null} [jsx] - Apply JSX transformation after Fable compilation: https://esbuild.github.io/api/#transformation
+ * @property {Boolean} [noReflection] - Pass noReflection value to Fable.Compiler
+ * @property {string[]} [exclude] - Pass exclude to Fable.Compiler
+ */
+
+/**
  * Either the project or a dependent file changed
  * @returns {Promise<void>}
  * @param {function} addWatchFile
- * @param {import('vite').Logger} logger
- * @param {PluginOptions} config
  * @param {PluginState} state
  * @param {String} id
  */
-async function projectChanged(addWatchFile, logger, config, state, id) {
+async function projectChanged(addWatchFile, state, id) {
   try {
-    logger.info(colors.blue(`[fable] watch: dependent file ${id} changed.`), {
-      timestamp: true,
-    });
+    state.logger.info(
+      colors.blue(`[fable] watch: dependent file ${id} changed.`),
+      {
+        timestamp: true,
+      },
+    );
     state.compilableFiles.clear();
     state.dependentFiles.clear();
-    await compileProject(addWatchFile, logger, state, config);
+    await compileProject(addWatchFile, state);
   } catch (e) {
-    logger.error(
+    state.logger.error(
       colors.red(`[fable] Unexpected failure during watchChange for ${id}`),
       { timestamp: true },
     );
@@ -262,15 +262,14 @@ async function projectChanged(addWatchFile, logger, config, state, id) {
  * An F# file part of state.compilableFiles has changed.
  * @returns {Promise<void>}
  * @param {function} load
- * @param {import('vite').Logger} logger
  * @param {PluginState} state
  * @param {String} id
  */
-async function fsharpFileChanged(load, logger, state, id) {
+async function fsharpFileChanged(load, state, id) {
   try {
-    logger.info(`[fable] watch: ${id} changed`);
+    state.logger.info(`[fable] watch: ${id} changed`);
     /** @type {FSharpDiscriminatedUnion} */
-    const compilationResult = await endpoint.send("fable/compile", {
+    const compilationResult = await state.endpoint.send("fable/compile", {
       fileName: id,
     });
     if (
@@ -278,10 +277,10 @@ async function fsharpFileChanged(load, logger, state, id) {
       compilationResult.fields &&
       compilationResult.fields.length > 0
     ) {
-      logger.info(`[fable] watch: ${id} compiled`);
+      state.logger.info(`[fable] watch: ${id} compiled`);
       const compiledFSharpFiles = compilationResult.fields[0];
       const diagnostics = compilationResult.fields[1];
-      logDiagnostics(logger, diagnostics);
+      logDiagnostics(state.logger, diagnostics);
       const loadPromises = Object.keys(compiledFSharpFiles).map((fsFile) => {
         const normalizedFileName = normalizePath(fsFile);
         state.compilableFiles.set(
@@ -292,7 +291,7 @@ async function fsharpFileChanged(load, logger, state, id) {
       });
       await Promise.all(loadPromises);
     } else {
-      logger.error(
+      state.logger.error(
         colors.red(
           `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
         ),
@@ -300,7 +299,7 @@ async function fsharpFileChanged(load, logger, state, id) {
       );
     }
   } catch (e) {
-    logger.error(
+    state.logger.error(
       colors.red(
         `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
       ),
@@ -308,14 +307,6 @@ async function fsharpFileChanged(load, logger, state, id) {
     );
   }
 }
-
-/**
- * @typedef {Object} PluginOptions
- * @property {string} [fsproj] - The main fsproj to load
- * @property {'transform' | 'preserve' | 'automatic' | null} [jsx] - Apply JSX transformation after Fable compilation: https://esbuild.github.io/api/#transformation
- * @property {Boolean} [noReflection] - Pass noReflection value to Fable.Compiler
- * @property {string[]} [exclude] - Pass exclude to Fable.Compiler
- */
 
 /** @type {PluginOptions} */
 const defaultConfig = { jsx: null, noReflection: false, exclude: [] };
@@ -327,29 +318,28 @@ const defaultConfig = { jsx: null, noReflection: false, exclude: [] };
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
 export default function fablePlugin(userConfig) {
-  /** @type {PluginOptions} */
-  const config = Object.assign({}, defaultConfig, userConfig);
   /** @type {PluginState} */
   const state = {
+    config: Object.assign({}, defaultConfig, userConfig),
     compilableFiles: new Map(),
     projectOptions: null,
     fsproj: null,
     configuration: "Debug",
     dependentFiles: new Set([]),
+    // @ts-ignore
+    logger: { info: console.log, warn: console.warn, error: console.error },
+    dotnetProcess: null,
+    endpoint: null,
   };
-
-  /** @type {import('vite').Logger} */
-  // @ts-ignore
-  let logger = { info: console.log, warn: console.warn, error: console.error };
 
   return {
     name: "vite-plugin-fable",
     enforce: "pre",
     configResolved: async function (resolvedConfig) {
-      logger = resolvedConfig.logger;
+      state.logger = resolvedConfig.logger;
       state.configuration =
         resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
-      logger.info(
+      state.logger.info(
         colors.blue(`[fable] Configuration: ${state.configuration}`),
         {
           timestamp: true,
@@ -358,33 +348,39 @@ export default function fablePlugin(userConfig) {
 
       const configDir = path.dirname(resolvedConfig.configFile);
 
-      if (config && config.fsproj) {
-        state.fsproj = config.fsproj;
+      if (state.config && state.config.fsproj) {
+        state.fsproj = state.config.fsproj;
       } else {
         state.fsproj = await findFsProjFile(configDir);
       }
 
       if (!state.fsproj) {
-        logger.error(
+        state.logger.error(
           colors.red(`[fable] No .fsproj file was found in ${configDir}`),
           { timestamp: true },
         );
       } else {
-        logger.info(colors.blue(`[fable] Entry fsproj ${state.fsproj}`), {
+        state.logger.info(colors.blue(`[fable] Entry fsproj ${state.fsproj}`), {
           timestamp: true,
         });
       }
     },
     buildStart: async function (options) {
       try {
-        await compileProject(
-          this.addWatchFile.bind(this),
-          logger,
-          state,
-          config,
+        state.logger.info(colors.green("[fable] buildStart: Starting daemon"), {
+          timestamp: true,
+        });
+        state.dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
+          shell: true,
+          stdio: "pipe",
+        });
+        state.endpoint = new JSONRPCEndpoint(
+          state.dotnetProcess.stdin,
+          state.dotnetProcess.stdout,
         );
+        await compileProject(this.addWatchFile.bind(this), state);
       } catch (e) {
-        logger.error(
+        state.logger.error(
           colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
           {
             timestamp: true,
@@ -394,15 +390,15 @@ export default function fablePlugin(userConfig) {
     },
     transform: async function (src, id) {
       if (fsharpFileRegex.test(id)) {
-        logger.info(`[fable] transform: ${id}`, { timestamp: true });
+        state.logger.info(`[fable] transform: ${id}`, { timestamp: true });
         if (state.compilableFiles.has(id)) {
           let code = state.compilableFiles.get(id);
           // If Fable outputted JSX, we still need to transform this.
           // @vitejs/plugin-react does not do this.
-          if (config.jsx) {
+          if (state.config.jsx) {
             const esbuildResult = await transform(code, {
               loader: "jsx",
-              jsx: config.jsx,
+              jsx: state.config.jsx,
             });
             code = esbuildResult.code;
           }
@@ -411,7 +407,7 @@ export default function fablePlugin(userConfig) {
             map: null,
           };
         } else {
-          logger.warn(
+          state.logger.warn(
             colors.yellow(
               `[fable] transform: ${id} is not part of compilableFiles`,
             ),
@@ -423,15 +419,9 @@ export default function fablePlugin(userConfig) {
     watchChange: async function (id, change) {
       if (state.projectOptions) {
         if (state.dependentFiles.has(id)) {
-          await projectChanged(
-            this.addWatchFile.bind(this),
-            logger,
-            config,
-            state,
-            id,
-          );
+          await projectChanged(this.addWatchFile.bind(this), state, id);
         } else if (fsharpFileRegex.test(id) && state.compilableFiles.has(id)) {
-          await fsharpFileChanged(this.load.bind(this), logger, state, id);
+          await fsharpFileChanged(this.load.bind(this), state, id);
         }
       }
     },
@@ -442,11 +432,13 @@ export default function fablePlugin(userConfig) {
         return modules.filter((m) => m.importers.size !== 0);
       }
     },
-    buildEnd: (error) => {
-      console.log("end", error);
-      // This happens for a restart as well...
-      logger.info(`[fable] buildEnd: Closing daemon`);
-      dotnetProcess.kill();
+    buildEnd: () => {
+      state.logger.info(colors.green(`[fable] buildEnd: Closing daemon`), {
+        timestamp: true,
+      });
+      if (state.dotnetProcess) {
+        state.dotnetProcess.kill();
+      }
     },
   };
 }
