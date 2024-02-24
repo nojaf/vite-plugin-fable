@@ -38,15 +38,17 @@ import colors from "picocolors";
 const fsharpFileRegex = /\.(fs|fsi)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(currentDir, "bin/Fable.Daemon.dll");
-const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
-  shell: true,
-  stdio: "pipe",
-});
+
 if (process.env.VITE_PLUGIN_FABLE_DEBUG) {
   console.log(
     `Running daemon in debug mode, visit http://localhost:9014 to view logs`,
   );
 }
+
+const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
+  shell: true,
+  stdio: "pipe",
+});
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
 
 /**
@@ -434,51 +436,16 @@ export default function fablePlugin(userConfig) {
       }
     },
     handleHotUpdate: function ({ file, server, modules }) {
-      function hotUpdateFiles(sourceFiles) {
-        const modulesToCompile = [];
-        for (const sourceFile of sourceFiles) {
-          const module = server.moduleGraph.getModuleById(sourceFile);
-          if (module) {
-            modulesToCompile.push(module);
-          } else {
-            logger.warn(`[handleHotUpdate] No module found for ${sourceFile}`);
-          }
-        }
-        if (modulesToCompile.length > 0) {
-          logger.info(
-            `[handleHotUpdate] about to send HMR update (${modulesToCompile.length}) to client.`,
-          );
-          server.ws.send({
-            type: "custom",
-            event: "hot-update-dependents",
-            data: modulesToCompile.map(({ url }) => url),
-          });
-          return modulesToCompile;
-        } else {
-          return modules;
-        }
-      }
-
-      if (
-        state.projectOptions &&
-        state.projectOptions.sourceFiles &&
-        fsharpFileRegex.test(file)
-      ) {
-        logger.info(`[handleHotUpdate] ${file}`);
-        const fileIdx = state.projectOptions.sourceFiles.indexOf(file);
-        const sourceFiles = state.projectOptions.sourceFiles.filter(
-          (f, idx) => idx >= fileIdx,
-        );
-        return hotUpdateFiles(sourceFiles);
-      } else if (state.projectOptions && state.dependentFiles.has(file)) {
-        logger.info(colors.green(`[handleHotUpdate] ${file}`), {
-          timestamp: true,
-        });
-        const sourceFiles = state.projectOptions.sourceFiles;
-        return hotUpdateFiles(sourceFiles);
+      if (state.compilableFiles.has(file)) {
+        // Potentially a file that is not imported in the current graph was changed.
+        // Vite should not try and hot update that module.
+        return modules.filter((m) => m.importers.size !== 0);
       }
     },
-    buildEnd: () => {
+    buildEnd: (error) => {
+      console.log("end", error);
+      // This happens for a restart as well...
+      logger.info(`[fable] buildEnd: Closing daemon`);
       dotnetProcess.kill();
     },
   };
