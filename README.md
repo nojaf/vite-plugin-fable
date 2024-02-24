@@ -22,4 +22,4 @@ You can read the code, that's is it for now.
 
 I talked a little bit about this project during this stream:
 
-[![vite-plugin-fable stream](http://img.youtube.com/vi/nVpUaVFNpMk/maxresdefault.jpg)](http://www.youtube.com/watch?v=nVpUaVFNpMk "vite-plugin-fable")
+[![vite-plugin-fable stream](http://img.youtube.com/vi/nVpUaVFNpMk/maxresdefault.jpg)](https://youtu.be/mnqwwtSQfRU?si=VpDDv3SzHikXL5iu&t=141 "vite-plugin-fable")

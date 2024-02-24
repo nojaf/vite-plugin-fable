@@ -1,7 +1,10 @@
 # Automatically normalize line endings
 * text=auto
 
-# Always use lf for F# files
+# Always use lf for source files
 *.fs text eol=lf
 *.fsx text eol=lf
 *.fsi text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.json text eol=lf
