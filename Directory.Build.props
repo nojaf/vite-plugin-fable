@@ -1,6 +1,5 @@
 <Project>
     <PropertyGroup>
-        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
         <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <UseArtifactsOutput>true</UseArtifactsOutput>

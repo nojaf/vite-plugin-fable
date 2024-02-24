@@ -19,5 +19,5 @@ fsharp_multi_line_lambda_closing_newline = true
 fsharp_experimental_keep_indent_in_branch = true
 fsharp_bar_before_discriminated_union_declaration = true
 
-[*.{fsproj,props}]
-indent_size = 4
+[Fable.Daemon/Debug.fs]
+fsharp_experimental_elmish=true

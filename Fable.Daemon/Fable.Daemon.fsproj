@@ -1,24 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
-    </PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
 
-    <ItemGroup>
-        <Compile Include="Thoth/Decode.fs" />
-<!--        <Compile Include="Thoth/Encode.fs" />-->
-        <Compile Include="Types.fs"/>
-        <Compile Include="MSBuild.fs" />
-        <Compile Include="Caching.fs" />
-        <Compile Include="CoolCatCracking.fs"/>
-        <Compile Include="Program.fs"/>
-    </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Thoth/Decode.fs"/>
+    <!--        <Compile Include="Thoth/Encode.fs" />-->
+    <Compile Include="Types.fs"/>
+    <Compile Include="MSBuild.fs"/>
+    <Compile Include="Caching.fs"/>
+    <Compile Include="CoolCatCracking.fs"/>
+    <Content Include="debug\index.html"/>
+    <Compile Include="Debug.fsi"/>
+    <Compile Include="Debug.fs"/>
+    <Compile Include="Program.fs"/>
+  </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="FSharp.SystemTextJson" />
-        <PackageReference Include="StreamJsonRpc"/>
-        <PackageReference Include="Thoth.Json.Core" />
-        <PackageReference Include="protobuf-net" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fable.React" />
+    <PackageReference Include="FSharp.Core"/>
+    <PackageReference Include="FSharp.SystemTextJson"/>
+    <PackageReference Include="StreamJsonRpc"/>
+    <PackageReference Include="Suave"/>
+    <PackageReference Include="Thoth.Json.Core"/>
+    <PackageReference Include="protobuf-net"/>
+  </ItemGroup>
 </Project>
