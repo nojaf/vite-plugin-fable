@@ -13,6 +13,7 @@
     <Compile Include="Caching.fs"/>
     <Compile Include="CoolCatCracking.fs"/>
     <Content Include="debug\index.html"/>
+    <Content Include="debug\favicon.ico" />
     <Compile Include="Debug.fsi"/>
     <Compile Include="Debug.fs"/>
     <Compile Include="Program.fs"/>

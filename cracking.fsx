@@ -70,7 +70,7 @@ let logger =
             )
             : unit
             =
-            let level = string logLevel |> _.ToLowerInvariant ()
+            let level = string logLevel
             printfn $"%s{level}: %s{formatter.Invoke (state, ex)}"
 
         member x.BeginScope<'TState> (_state : 'TState) : System.IDisposable = null
