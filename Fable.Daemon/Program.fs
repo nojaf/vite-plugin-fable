@@ -4,6 +4,7 @@ open System.IO
 open System.Threading
 open System.Text.Json
 open System.Text.Json.Serialization
+open System.Threading.Tasks
 open Microsoft.Extensions.Logging
 open StreamJsonRpc
 open Fable
@@ -222,6 +223,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
     async {
         try
             let fileName = Path.normalizePath fileName
+            logger.LogDebug ("tryCompileFile {fileName}", fileName)
 
             let sourceReader =
                 Fable.Compiler.File.MakeSourceReader (
@@ -383,7 +385,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
     member this.WaitForClose = rpc.Completion
 
     [<JsonRpcMethod("fable/project-changed", UseSingleObjectParameterDeserialization = true)>]
-    member _.ProjectChanged (p : ProjectChangedPayload) =
+    member _.ProjectChanged (p : ProjectChangedPayload) : Task<ProjectChangedResult> =
         task {
             logger.LogDebug ("enter \"fable/project-changed\" {p}", p)
             let! response = mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p, replyChannel))
@@ -392,15 +394,34 @@ type FableServer(sender : Stream, reader : Stream) as this =
         }
 
     [<JsonRpcMethod("fable/initial-compile", UseSingleObjectParameterDeserialization = true)>]
-    member _.InitialCompile () =
-        task { return! mailbox.PostAndAsyncReply Msg.CompileFullProject }
+    member _.InitialCompile () : Task<FilesCompiledResult> =
+        task {
+            logger.LogDebug "enter \"fable/initial-compile\""
+            let! response = mailbox.PostAndAsyncReply Msg.CompileFullProject
+
+            let logResponse =
+                match response with
+                | FilesCompiledResult.Error e -> box e
+                | FilesCompiledResult.Success result -> result.Keys |> String.concat "\n" |> sprintf "\n%s" |> box
+
+            logger.LogDebug ("exit \"fable/initial-compile\" with {logResponse}", logResponse)
+            return response
+        }
 
     [<JsonRpcMethod("fable/compile", UseSingleObjectParameterDeserialization = true)>]
-    member _.CompileFile (p : CompileFilePayload) =
+    member _.CompileFile (p : CompileFilePayload) : Task<FileChangedResult> =
         task {
             logger.LogDebug ("enter \"fable/compile\" with {p}", p)
             let! response = mailbox.PostAndAsyncReply (fun replyChannel -> Msg.CompileFile (p.FileName, replyChannel))
-            logger.LogDebug ("exit \"fable/compile\" with {p}", p)
+
+            let logResponse =
+                match response with
+                | FileChangedResult.Error e -> box e
+                | FileChangedResult.Success (result, diagnostics) ->
+                    let keys = result.Keys |> String.concat "\n" |> sprintf "\n%s"
+                    box (keys, diagnostics)
+
+            logger.LogDebug ("exit \"fable/compile\" with {p}", logResponse)
             return response
         }
 
