@@ -1,8 +1,12 @@
 ﻿open System
+open System.Diagnostics
 open System.IO
-open System.Threading.Tasks
+open System.Threading
 open System.Text.Json
 open System.Text.Json.Serialization
+open System.Threading.Tasks
+open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Abstractions
 open StreamJsonRpc
 open Fable
 open FSharp.Compiler.CodeAnalysis
@@ -30,7 +34,24 @@ type Model =
         TypeCheckProjectResult : TypeCheckProjectResult
     }
 
-type PongResponse = { Message : string }
+let logger : ILogger =
+    let envVar = Environment.GetEnvironmentVariable "VITE_PLUGIN_FABLE_DEBUG"
+
+    if not (String.IsNullOrWhiteSpace envVar) && not (envVar = "0") then
+        Debug.InMemoryLogger ()
+    else
+        NullLogger.Instance
+
+// Set Fable logger
+Log.setLogger Verbosity.Verbose logger
+
+let timeAsync f =
+    async {
+        let sw = Stopwatch.StartNew ()
+        let! result = f
+        sw.Stop ()
+        return result, sw.Elapsed
+    }
 
 type TypeCheckedProjectData =
     {
@@ -53,6 +74,7 @@ let tryTypeCheckProject
         try
             /// Project file will be in the Vite normalized format
             let projectFile = Path.GetFullPath payload.Project
+            logger.LogDebug ("start tryTypeCheckProject for {projectFile}", projectFile)
 
             let cliArgs : CliArgs =
                 {
@@ -87,11 +109,12 @@ let tryTypeCheckProject
                             NoReflection = payload.NoReflection
                         }
                     RunProcess = None
-                    Verbosity = Verbosity.Normal
+                    Verbosity = Verbosity.Verbose
                 }
 
             let crackerOptions = CrackerOptions (cliArgs, true)
             let crackerResponse = getFullProjectOpts crackerResolver crackerOptions
+            logger.LogDebug ("CrackerResponse: {crackerResponse}", crackerResponse)
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
             let sourceReader =
@@ -100,7 +123,10 @@ let tryTypeCheckProject
                 )
                 |> snd
 
-            let! typeCheckResult = CodeServices.typeCheckProject sourceReader checker cliArgs crackerResponse
+            let! typeCheckResult, typeCheckTime =
+                timeAsync (CodeServices.typeCheckProject sourceReader checker cliArgs crackerResponse)
+
+            logger.LogDebug ("Typechecking {projectFile} took {elapsed}", projectFile, typeCheckTime)
 
             let dependentFiles =
                 crackerResolver.MSBuildProjectFiles projectFile
@@ -204,6 +230,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
     async {
         try
             let fileName = Path.normalizePath fileName
+            logger.LogDebug ("tryCompileFile {fileName}", fileName)
 
             let sourceReader =
                 Fable.Compiler.File.MakeSourceReader (
@@ -246,6 +273,15 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
             options.Converters.Add (JsonUnionConverter jsonFSharpOptions)
             options
+
+    let cts = new CancellationTokenSource ()
+
+    do
+        match logger with
+        | :? Debug.InMemoryLogger as logger ->
+            let server = Debug.startWebserver logger cts.Token
+            Async.Start (server, cts.Token)
+        | _ -> ()
 
     let handler =
         new HeaderDelimitedMessageHandler (sender, reader, jsonMessageFormatter)
@@ -332,7 +368,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
             loop
                 {
-                    CoolCatResolver = CoolCatResolver ()
+                    CoolCatResolver = CoolCatResolver logger
                     CliArgs = Unchecked.defaultof<CliArgs>
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>
@@ -350,26 +386,54 @@ type FableServer(sender : Stream, reader : Stream) as this =
             if not (isNull subscription) then
                 subscription.Dispose ()
 
+            if not cts.IsCancellationRequested then
+                cts.Cancel ()
+
             ()
 
     /// returns a hot task that resolves when the stream has terminated
     member this.WaitForClose = rpc.Completion
 
-    [<JsonRpcMethod("fable/ping", UseSingleObjectParameterDeserialization = true)>]
-    member _.Ping (_p : PingPayload) : Task<PongResponse> =
-        task { return { Message = "And dotnet will answer" } }
-
     [<JsonRpcMethod("fable/project-changed", UseSingleObjectParameterDeserialization = true)>]
-    member _.ProjectChanged (p : ProjectChangedPayload) =
-        task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p, replyChannel)) }
+    member _.ProjectChanged (p : ProjectChangedPayload) : Task<ProjectChangedResult> =
+        task {
+            logger.LogDebug ("enter \"fable/project-changed\" {p}", p)
+            let! response = mailbox.PostAndAsyncReply (fun replyChannel -> Msg.ProjectChanged (p, replyChannel))
+            logger.LogDebug ("exit \"fable/project-changed\" {response}", response)
+            return response
+        }
 
     [<JsonRpcMethod("fable/initial-compile", UseSingleObjectParameterDeserialization = true)>]
-    member _.InitialCompile () =
-        task { return! mailbox.PostAndAsyncReply Msg.CompileFullProject }
+    member _.InitialCompile () : Task<FilesCompiledResult> =
+        task {
+            logger.LogDebug "enter \"fable/initial-compile\""
+            let! response = mailbox.PostAndAsyncReply Msg.CompileFullProject
+
+            let logResponse =
+                match response with
+                | FilesCompiledResult.Error e -> box e
+                | FilesCompiledResult.Success result -> result.Keys |> String.concat "\n" |> sprintf "\n%s" |> box
+
+            logger.LogDebug ("exit \"fable/initial-compile\" with {logResponse}", logResponse)
+            return response
+        }
 
     [<JsonRpcMethod("fable/compile", UseSingleObjectParameterDeserialization = true)>]
-    member _.CompileFile (p : CompileFilePayload) =
-        task { return! mailbox.PostAndAsyncReply (fun replyChannel -> Msg.CompileFile (p.FileName, replyChannel)) }
+    member _.CompileFile (p : CompileFilePayload) : Task<FileChangedResult> =
+        task {
+            logger.LogDebug ("enter \"fable/compile\" with {p}", p)
+            let! response = mailbox.PostAndAsyncReply (fun replyChannel -> Msg.CompileFile (p.FileName, replyChannel))
+
+            let logResponse =
+                match response with
+                | FileChangedResult.Error e -> box e
+                | FileChangedResult.Success (result, diagnostics) ->
+                    let keys = result.Keys |> String.concat "\n" |> sprintf "\n%s"
+                    box (keys, diagnostics)
+
+            logger.LogDebug ("exit \"fable/compile\" with {p}", logResponse)
+            return response
+        }
 
 let input = Console.OpenStandardInput ()
 let output = Console.OpenStandardOutput ()

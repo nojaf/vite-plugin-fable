@@ -3,8 +3,10 @@
 #r "Fable.Compiler"
 #r "Fable.Daemon"
 #r "./bin/FSharp.Compiler.Service.dll"
+#r "./bin/Microsoft.Extensions.Logging.Abstractions.dll"
 
 open System.IO
+open Microsoft.Extensions.Logging
 open Fable.Compiler.Util
 open Fable.Compiler.ProjectCracker
 open Fable.Daemon
@@ -17,6 +19,7 @@ let fsproj =
     // @"C:\Users\nojaf\Projects\telplin\tool\client\OnlineTool.fsproj"
     // "/home/nojaf/projects/fantomas-tools/src/client/fsharp/FantomasTools.fsproj"
     Path.Combine (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+    |> Path.GetFullPath
 
 let cliArgs : CliArgs =
     {
@@ -54,7 +57,27 @@ let cliArgs : CliArgs =
     }
 
 let options : CrackerOptions = CrackerOptions (cliArgs, true)
-let resolver : ProjectCrackerResolver = CoolCatResolver ()
+
+let logger =
+    { new ILogger with
+        member x.Log<'TState>
+            (
+                logLevel : LogLevel,
+                _eventId : EventId,
+                state : 'TState,
+                ex : exn,
+                formatter : System.Func<'TState, exn, string>
+            )
+            : unit
+            =
+            let level = string logLevel
+            printfn $"%s{level}: %s{formatter.Invoke (state, ex)}"
+
+        member x.BeginScope<'TState> (_state : 'TState) : System.IDisposable = null
+        member x.IsEnabled (_logLevel : LogLevel) : bool = true
+    }
+
+let resolver : ProjectCrackerResolver = CoolCatResolver logger
 
 #time "on"
 
@@ -66,3 +89,8 @@ let result = resolver.GetProjectOptionsFromProjectFile (true, options, fsproj)
 
 for option in result.ProjectOptions do
     printfn "%s" option
+
+
+open System
+
+DateTime.Now.ToString ("HH:mm:ss.fff")

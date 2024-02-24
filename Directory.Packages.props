@@ -1,24 +1,27 @@
 <Project>
-    <PropertyGroup>
-        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-        <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    </PropertyGroup>
-    <ItemGroup>
-        <PackageVersion Include="FSharp.SystemTextJson" Version="1.2.42"/>
-        <PackageVersion Include="StreamJsonRpc" Version="2.16.36"/>
-        <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-007"/>
-        <PackageVersion Include="Thoth.Json.Core" Version="0.1.0"/>
-        <PackageVersion Include="protobuf-net" Version="3.2.30" />
-        <!-- lock transitive dependencies -->
-        <PackageVersion Include="Fable.AST" Version="4.4.0" />
-        <PackageVersion Include="System.Collections" Version="4.3.0"/>
-        <PackageVersion Include="System.Diagnostics.Debug" Version="4.3.0"/>
-        <PackageVersion Include="System.IO.FileSystem.Primitives" Version="4.3.0"/>
-        <PackageVersion Include="System.Runtime.Extensions" Version="4.3.1"/>
-        <!-- unit test project -->
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
-        <PackageVersion Include="Nerdbank.Streams" Version="2.10.72"/>
-        <PackageVersion Include="NUnit" Version="3.14.0"/>
-        <PackageVersion Include="NUnit3TestAdapter" Version="4.2.1"/>
-    </ItemGroup>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Fable.React" Version="7.4.3" />
+    <PackageVersion Include="FSharp.Core" Version="8.0.200" />
+    <PackageVersion Include="FSharp.SystemTextJson" Version="1.2.42" />
+    <PackageVersion Include="StreamJsonRpc" Version="2.16.36" />
+    <PackageVersion Include="Fable.Compiler" Version="4.0.0-alpha-007" />
+    <PackageVersion Include="Suave" Version="2.6.2" />
+    <PackageVersion Include="Thoth.Json.Core" Version="0.1.0" />
+    <PackageVersion Include="protobuf-net" Version="3.2.30" />
+    <!-- lock transitive dependencies -->
+    <PackageVersion Include="Fable.AST" Version="4.4.0" />
+    <PackageVersion Include="System.Collections" Version="4.3.0" />
+    <PackageVersion Include="System.Diagnostics.Debug" Version="4.3.0" />
+    <PackageVersion Include="System.IO.FileSystem.Primitives" Version="4.3.0" />
+    <PackageVersion Include="System.Runtime.Extensions" Version="4.3.1" />
+    <!-- unit test project -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
+    <PackageVersion Include="Nerdbank.Streams" Version="2.10.72" />
+    <PackageVersion Include="NUnit" Version="3.14.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="4.2.1" />
+  </ItemGroup>
 </Project>

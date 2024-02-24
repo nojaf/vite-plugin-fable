@@ -42,6 +42,11 @@ const dotnetProcess = spawn("dotnet", [fableDaemon, "--stdio"], {
   shell: true,
   stdio: "pipe",
 });
+if (process.env.VITE_PLUGIN_FABLE_DEBUG) {
+  console.log(
+    `Running daemon in debug mode, visit http://localhost:9014 to view logs`,
+  );
+}
 const endpoint = new JSONRPCEndpoint(dotnetProcess.stdin, dotnetProcess.stdout);
 
 /**
