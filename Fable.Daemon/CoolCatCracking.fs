@@ -3,6 +3,7 @@
 open System
 open System.IO
 open System.Collections.Concurrent
+open Microsoft.Extensions.Logging
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
 open Fable
@@ -149,12 +150,13 @@ module CoolCatCracking =
 
 /// Crack the fsproj using the `dotnet msbuild --getProperty --getItem` command
 /// See https://devblogs.microsoft.com/dotnet/announcing-dotnet-8-rc2/#msbuild-simple-cli-based-project-evaluation
-type CoolCatResolver() =
+type CoolCatResolver(logger : ILogger) =
     let cached = ConcurrentDictionary<FullPath, Caching.CacheKey> ()
 
     /// Under the same design time conditions and same Fable.Compiler, the used Fable libraries don't change.
     member x.TryGetCachedFableModuleFiles (fsproj : FullPath) : Map<FullPath, string> =
         if not (cached.ContainsKey fsproj) then
+            logger.LogWarning ("{fsproj} does not have a cache entry in CoolCatResolver", fsproj)
             Map.empty
         else
             Caching.loadFableModulesFromCache cached.[fsproj]
@@ -162,7 +164,7 @@ type CoolCatResolver() =
     /// Try and write the fable_module compilation results to the cache.
     member x.WriteCachedFableModuleFiles (fsproj : FullPath) (fableModuleFiles : Map<FullPath, JavaScript>) =
         if not (cached.ContainsKey fsproj) then
-            ()
+            logger.LogWarning ("{fsproj} does not have a cache entry in CoolCatResolver", fsproj)
         else
 
         Caching.writeFableModulesFromCache cached.[fsproj] fableModuleFiles
@@ -171,6 +173,7 @@ type CoolCatResolver() =
     /// These are the fsproj and potential MSBuild import files
     member x.MSBuildProjectFiles (fsproj : FullPath) : FileInfo list =
         if not (cached.ContainsKey fsproj) then
+            logger.LogWarning ("{fsproj} does not have a cache entry in CoolCatResolver", fsproj)
             List.empty
         else
             cached.[fsproj].DependentFiles
@@ -178,6 +181,7 @@ type CoolCatResolver() =
     interface ProjectCrackerResolver with
         member x.GetProjectOptionsFromProjectFile (isMain, options, projectFile) =
             async {
+                logger.LogDebug ("ProjectCrackerResolver.GetProjectOptionsFromProjectFile {projectFile}", projectFile)
                 let fsproj = FileInfo projectFile
 
                 if not fsproj.Exists then
@@ -190,6 +194,12 @@ type CoolCatResolver() =
                         else
                             match! Caching.mkProjectCacheKey options fsproj with
                             | Error error ->
+                                logger.LogError (
+                                    "Could not construct cache key for {projectFile} {error}",
+                                    projectFile,
+                                    error
+                                )
+
                                 return failwithf $"Could not construct cache key for %s{projectFile}, %A{error}"
                             | Ok cacheKey -> return cacheKey
                     }
@@ -199,9 +209,16 @@ type CoolCatResolver() =
 
                 match Caching.canReuseDesignTimeBuildCache currentCacheKey with
                 | Ok projectOptionsResponse ->
+                    logger.LogInformation ("Design time build cache can be reused for {projectFile}", projectFile)
                     // The sweet spot, nothing changed and we can skip the design time build
                     return projectOptionsResponse
                 | Error reason ->
+                    logger.LogDebug (
+                        "Cache file could not be reused for {projectFile} because {reason}",
+                        projectFile,
+                        reason
+                    )
+
                     // Delete the current cache file if it is no longer valid.
                     match reason with
                     | Caching.InvalidCacheReason.CouldNotDeserialize _
@@ -218,6 +235,7 @@ type CoolCatResolver() =
                     | Caching.InvalidCacheReason.FileDoesNotExist _ -> ()
 
                     // Perform design time build and cache result
+                    logger.LogDebug ("About to perform design time build for {projectFile}", projectFile)
                     let! result = CoolCatCracking.mkOptionsFromDesignTimeBuildAux fsproj options
                     Caching.writeDesignTimeBuild currentCacheKey result
 

@@ -368,7 +368,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
             loop
                 {
-                    CoolCatResolver = CoolCatResolver ()
+                    CoolCatResolver = CoolCatResolver logger
                     CliArgs = Unchecked.defaultof<CliArgs>
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>

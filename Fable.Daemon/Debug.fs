@@ -45,7 +45,7 @@ module HTML =
         |> Seq.map (fun entry ->
             li [] [
                 strong [] [ str entry.Level ]
-                time [] [ str (entry.TimeStamp.ToLongTimeString ()) ]
+                time [] [ str (entry.TimeStamp.ToString "HH:mm:ss.fff") ]
                 pre [] [ str entry.Message ]
             ]
         )
