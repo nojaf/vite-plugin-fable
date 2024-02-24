@@ -232,6 +232,82 @@ async function compileProject(addWatchFile, logger, state, config) {
 }
 
 /**
+ * Either the project or a dependent file changed
+ * @returns {Promise<void>}
+ * @param {function} addWatchFile
+ * @param {import('vite').Logger} logger
+ * @param {PluginOptions} config
+ * @param {PluginState} state
+ * @param {String} id
+ */
+async function projectChanged(addWatchFile, logger, config, state, id) {
+  try {
+    logger.info(colors.blue(`[fable] watch: dependent file ${id} changed.`), {
+      timestamp: true,
+    });
+    state.compilableFiles.clear();
+    state.dependentFiles.clear();
+    await compileProject(addWatchFile, logger, state, config);
+  } catch (e) {
+    logger.error(
+      colors.red(`[fable] Unexpected failure during watchChange for ${id}`),
+      { timestamp: true },
+    );
+  }
+}
+
+/**
+ * An F# file part of state.compilableFiles has changed.
+ * @returns {Promise<void>}
+ * @param {function} load
+ * @param {import('vite').Logger} logger
+ * @param {PluginState} state
+ * @param {String} id
+ */
+async function fsharpFileChanged(load, logger, state, id) {
+  try {
+    logger.info(`[fable] watch: ${id} changed`);
+    /** @type {FSharpDiscriminatedUnion} */
+    const compilationResult = await endpoint.send("fable/compile", {
+      fileName: id,
+    });
+    if (
+      compilationResult.case === "Success" &&
+      compilationResult.fields &&
+      compilationResult.fields.length > 0
+    ) {
+      logger.info(`[fable] watch: ${id} compiled`);
+      const compiledFSharpFiles = compilationResult.fields[0];
+      const diagnostics = compilationResult.fields[1];
+      logDiagnostics(logger, diagnostics);
+      const loadPromises = Object.keys(compiledFSharpFiles).map((fsFile) => {
+        const normalizedFileName = normalizePath(fsFile);
+        state.compilableFiles.set(
+          normalizedFileName,
+          compiledFSharpFiles[fsFile],
+        );
+        return load({ id: normalizedFileName });
+      });
+      await Promise.all(loadPromises);
+    } else {
+      logger.error(
+        colors.red(
+          `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
+        ),
+        { timestamp: true },
+      );
+    }
+  } catch (e) {
+    logger.error(
+      colors.red(
+        `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
+      ),
+      { timestamp: true },
+    );
+  }
+}
+
+/**
  * @typedef {Object} PluginOptions
  * @property {string} [fsproj] - The main fsproj to load
  * @property {'transform' | 'preserve' | 'automatic' | null} [jsx] - Apply JSX transformation after Fable compilation: https://esbuild.github.io/api/#transformation
@@ -345,72 +421,15 @@ export default function fablePlugin(userConfig) {
     watchChange: async function (id, change) {
       if (state.projectOptions) {
         if (state.dependentFiles.has(id)) {
-          try {
-            logger.info(
-              colors.blue(`[fable] watch: dependent file ${id} changed.`),
-              { timestamp: true },
-            );
-            state.compilableFiles.clear();
-            state.dependentFiles.clear();
-            await compileProject(
-              this.addWatchFile.bind(this),
-              logger,
-              state,
-              config,
-            );
-            return;
-          } catch (e) {
-            logger.error(
-              colors.red(
-                `[fable] Unexpected failure during watchChange for ${id}`,
-              ),
-              { timestamp: true },
-            );
-          }
-        } else if (fsharpFileRegex.test(id)) {
-          logger.info(`[fable] watch: ${id} changed`);
-          try {
-            /** @type {FSharpDiscriminatedUnion} */
-            const compilationResult = await endpoint.send("fable/compile", {
-              fileName: id,
-            });
-            if (
-              compilationResult.case === "Success" &&
-              compilationResult.fields &&
-              compilationResult.fields.length > 0
-            ) {
-              logger.info(`[fable] watch: ${id} compiled`);
-              const compiledFSharpFiles = compilationResult.fields[0];
-              const diagnostics = compilationResult.fields[1];
-              logDiagnostics(logger, diagnostics);
-              const loadPromises = Object.keys(compiledFSharpFiles).map(
-                (fsFile) => {
-                  const normalizedFileName = normalizePath(fsFile);
-                  state.compilableFiles.set(
-                    normalizedFileName,
-                    compiledFSharpFiles[fsFile],
-                  );
-                  return this.load({ id: normalizedFileName });
-                },
-              );
-              await Promise.all(loadPromises);
-              return;
-            } else {
-              logger.error(
-                colors.red(
-                  `[watchChange] compilation of ${id} failed, ${compilationResult.fields[0]}`,
-                ),
-                { timestamp: true },
-              );
-            }
-          } catch (e) {
-            logger.error(
-              colors.red(
-                `[watchChange] compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
-              ),
-              { timestamp: true },
-            );
-          }
+          await projectChanged(
+            this.addWatchFile.bind(this),
+            logger,
+            config,
+            state,
+            id,
+          );
+        } else if (fsharpFileRegex.test(id) && state.compilableFiles.has(id)) {
+          await fsharpFileChanged(this.load.bind(this), logger, state, id);
         }
       }
     },
