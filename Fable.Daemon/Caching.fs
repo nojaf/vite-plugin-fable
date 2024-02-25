@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Reflection
 open System.Runtime.InteropServices
+open Microsoft.Extensions.Logging
 open Thoth.Json.Core
 open Thoth.Json.SystemTextJson
 open ProtoBuf
@@ -96,7 +97,7 @@ type DesignTimeBuildCache =
         FableCompilerVersion : string
     }
 
-let private isWindows = RuntimeInformation.IsOSPlatform (OSPlatform.Windows)
+let private isWindows = RuntimeInformation.IsOSPlatform OSPlatform.Windows
 
 /// Save the compiler arguments results from the design time build to the intermediate folder.
 let writeDesignTimeBuild (x : CacheKey) (response : ProjectOptionsResponse) =
@@ -212,10 +213,14 @@ let private cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Dec
         let cacheFile =
             FileInfo (Path.Combine (intermediateOutputPath, $"{fsproj.Name}%s{DesignTimeBuildExtension}"))
 
+        let dependentFiles =
+            [ yield fsproj ; yield! paths ; yield! nugetGProps ]
+            |> List.distinctBy (fun fi -> fi.FullName)
+
         {
             MainFsproj = fsproj
             CacheFile = cacheFile
-            DependentFiles = [ yield! paths ; yield! nugetGProps ]
+            DependentFiles = dependentFiles
             Defines = Set.ofList options.FableOptions.Define
             Configuration = options.Configuration
             FableCompilerVersion = fableCompilerVersion
@@ -223,7 +228,12 @@ let private cacheKeyDecoder (options : CrackerOptions) (fsproj : FileInfo) : Dec
     )
 
 /// Generate the caching key information for the design time build of the incoming fsproj file.
-let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Result<CacheKey, string>> =
+let mkProjectCacheKey
+    (logger : ILogger)
+    (options : CrackerOptions)
+    (fsproj : FileInfo)
+    : Async<Result<CacheKey, string>>
+    =
     async {
         if not fsproj.Exists then
             raise (ArgumentException ($"%s{fsproj.FullName} does not exists", nameof fsproj))
@@ -235,6 +245,7 @@ let mkProjectCacheKey (options : CrackerOptions) (fsproj : FileInfo) : Async<Res
 
         let! json =
             MSBuild.dotnet_msbuild
+                logger
                 fsproj
                 $"/p:Configuration=%s{options.Configuration} --getProperty:MSBuildAllProjects --getProperty:IntermediateOutputPath --getProperty:MSBuildProjectExtensionsPath"
 

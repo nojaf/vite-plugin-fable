@@ -23,11 +23,20 @@ type Msg =
     | CompileFile of fileName : string * AsyncReplyChannel<FileChangedResult>
     | Disconnect
 
+/// Input for every getFullProjectOpts
+/// Should be reused for subsequent type checks.
+type CrackerInput =
+    {
+        CliArgs : CliArgs
+        /// Reuse the cracker options in future design time builds
+        CrackerOptions : CrackerOptions
+    }
+
 type Model =
     {
         CoolCatResolver : CoolCatResolver
-        CliArgs : CliArgs
         Checker : InteractiveChecker
+        CrackerInput : CrackerInput option
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
         PathResolver : PathResolver
@@ -56,7 +65,7 @@ let timeAsync f =
 type TypeCheckedProjectData =
     {
         TypeCheckProjectResult : TypeCheckProjectResult
-        CliArgs : CliArgs
+        CrackerInput : CrackerInput
         Checker : InteractiveChecker
         CrackerResponse : CrackerResponse
         SourceReader : SourceReader
@@ -66,7 +75,7 @@ type TypeCheckedProjectData =
     }
 
 let tryTypeCheckProject
-    (crackerResolver : CoolCatResolver)
+    (model : Model)
     (payload : ProjectChangedPayload)
     : Async<Result<TypeCheckedProjectData, string>>
     =
@@ -76,44 +85,53 @@ let tryTypeCheckProject
             let projectFile = Path.GetFullPath payload.Project
             logger.LogDebug ("start tryTypeCheckProject for {projectFile}", projectFile)
 
-            let cliArgs : CliArgs =
-                {
-                    ProjectFile = projectFile
-                    RootDir = Path.GetDirectoryName payload.Project
-                    OutDir = None
-                    IsWatch = false
-                    Precompile = false
-                    PrecompiledLib = None
-                    PrintAst = false
-                    FableLibraryPath = Some payload.FableLibrary
-                    Configuration = payload.Configuration
-                    NoRestore = true
-                    NoCache = true
-                    NoParallelTypeCheck = false
-                    SourceMaps = false
-                    SourceMapsRoot = None
-                    Exclude = List.ofArray payload.Exclude
-                    Replace = Map.empty
-                    CompilerOptions =
-                        {
-                            TypedArrays = false
-                            ClampByteArrays = false
-                            Language = Language.JavaScript
-                            Define = [ "FABLE_COMPILER" ; "FABLE_COMPILER_4" ; "FABLE_COMPILER_JAVASCRIPT" ]
-                            DebugMode = false
-                            OptimizeFSharpAst = false
-                            Verbosity = Verbosity.Verbose
-                            // We keep using `.fs` for the compiled FSharp file, even though the contents will be JavaScript.
-                            FileExtension = ".fs"
-                            TriggeredByDependency = false
-                            NoReflection = payload.NoReflection
-                        }
-                    RunProcess = None
-                    Verbosity = Verbosity.Verbose
-                }
+            let cliArgs, crackerOptions =
+                match model.CrackerInput with
+                | Some {
+                           CliArgs = cliArgs
+                           CrackerOptions = crackerOptions
+                       } -> cliArgs, crackerOptions
+                | None ->
 
-            let crackerOptions = CrackerOptions (cliArgs, true)
-            let crackerResponse = getFullProjectOpts crackerResolver crackerOptions
+                let cliArgs : CliArgs =
+                    {
+                        ProjectFile = projectFile
+                        RootDir = Path.GetDirectoryName payload.Project
+                        OutDir = None
+                        IsWatch = false
+                        Precompile = false
+                        PrecompiledLib = None
+                        PrintAst = false
+                        FableLibraryPath = Some payload.FableLibrary
+                        Configuration = payload.Configuration
+                        NoRestore = true
+                        NoCache = true
+                        NoParallelTypeCheck = false
+                        SourceMaps = false
+                        SourceMapsRoot = None
+                        Exclude = List.ofArray payload.Exclude
+                        Replace = Map.empty
+                        CompilerOptions =
+                            {
+                                TypedArrays = false
+                                ClampByteArrays = false
+                                Language = Language.JavaScript
+                                Define = [ "FABLE_COMPILER" ; "FABLE_COMPILER_4" ; "FABLE_COMPILER_JAVASCRIPT" ]
+                                DebugMode = false
+                                OptimizeFSharpAst = false
+                                Verbosity = Verbosity.Verbose
+                                // We keep using `.fs` for the compiled FSharp file, even though the contents will be JavaScript.
+                                FileExtension = ".fs"
+                                TriggeredByDependency = false
+                                NoReflection = payload.NoReflection
+                            }
+                        RunProcess = None
+                        Verbosity = Verbosity.Verbose
+                    }
+
+                cliArgs, CrackerOptions (cliArgs, true)
+
+            let crackerResponse = getFullProjectOpts model.CoolCatResolver crackerOptions
             logger.LogDebug ("CrackerResponse: {crackerResponse}", crackerResponse)
             let checker = InteractiveChecker.Create crackerResponse.ProjectOptions
 
@@ -129,7 +147,7 @@ let tryTypeCheckProject
             logger.LogDebug ("Typechecking {projectFile} took {elapsed}", projectFile, typeCheckTime)
 
             let dependentFiles =
-                crackerResolver.MSBuildProjectFiles projectFile
+                model.CoolCatResolver.MSBuildProjectFiles projectFile
                 |> List.map (fun fi -> fi.FullName)
                 |> List.toArray
 
@@ -137,13 +155,20 @@ let tryTypeCheckProject
                 Ok
                     {
                         TypeCheckProjectResult = typeCheckResult
-                        CliArgs = cliArgs
+                        CrackerInput =
+                            Option.defaultValue
+                                {
+                                    CliArgs = cliArgs
+                                    CrackerOptions = crackerOptions
+                                }
+                                model.CrackerInput
                         Checker = checker
                         CrackerResponse = crackerResponse
                         SourceReader = sourceReader
                         DependentFiles = dependentFiles
                     }
         with ex ->
+            logger.LogCritical ("tryTypeCheckProject threw exception {ex}", ex)
             return Error ex.Message
     }
 
@@ -172,34 +197,33 @@ let private mapDiagnostics (ds : FSharpDiagnostic array) =
         }
     )
 
-let tryCompileProject
-    (pathResolver : PathResolver)
-    (cliArgs : CliArgs)
-    (coolCatResolver : CoolCatResolver)
-    (crackerResponse : CrackerResponse)
-    (typeCheckProjectResult : TypeCheckProjectResult)
-    : Async<Result<CompiledProjectData, string>>
-    =
+let tryCompileProject (pathResolver : PathResolver) (model : Model) : Async<Result<CompiledProjectData, string>> =
     async {
         try
             let cachedFableModuleFiles =
-                coolCatResolver.TryGetCachedFableModuleFiles crackerResponse.ProjectOptions.ProjectFileName
+                model.CoolCatResolver.TryGetCachedFableModuleFiles model.CrackerResponse.ProjectOptions.ProjectFileName
 
             let files =
                 let cachedFiles = cachedFableModuleFiles.Keys |> Set.ofSeq
 
-                crackerResponse.ProjectOptions.SourceFiles
+                model.CrackerResponse.ProjectOptions.SourceFiles
                 |> Array.filter (fun sf ->
                     not (sf.EndsWith (".fsi", StringComparison.Ordinal))
                     && not (cachedFiles.Contains sf)
                 )
 
+            match model.CrackerInput with
+            | None ->
+                logger.LogCritical "tryCompileProject is entered without CrackerInput"
+                return raise (exn "tryCompileProject is entered without CrackerInput")
+            | Some { CliArgs = cliArgs } ->
+
             let! initialCompileResponse =
                 CodeServices.compileMultipleFilesToJavaScript
                     pathResolver
                     cliArgs
-                    crackerResponse
-                    typeCheckProjectResult
+                    model.CrackerResponse
+                    model.TypeCheckProjectResult
                     files
 
             if cachedFableModuleFiles.IsEmpty then
@@ -207,8 +231,8 @@ let tryCompileProject
                     initialCompileResponse.CompiledFiles
                     |> Map.filter (fun key _value -> key.Contains "fable_modules")
 
-                coolCatResolver.WriteCachedFableModuleFiles
-                    crackerResponse.ProjectOptions.ProjectFileName
+                model.CoolCatResolver.WriteCachedFableModuleFiles
+                    model.CrackerResponse.ProjectOptions.ProjectFileName
                     fableModuleFiles
 
             let compiledFiles =
@@ -217,6 +241,7 @@ let tryCompileProject
 
             return Ok { CompiledFSharpFiles = compiledFiles }
         with ex ->
+            logger.LogCritical ("tryCompileProject threw exception {ex}", ex)
             return Error ex.Message
     }
 
@@ -232,6 +257,12 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
             let fileName = Path.normalizePath fileName
             logger.LogDebug ("tryCompileFile {fileName}", fileName)
 
+            match model.CrackerInput with
+            | None ->
+                logger.LogCritical "tryCompileFile is entered without CrackerInput"
+                return raise (exn "tryCompileFile is entered without CrackerInput")
+            | Some { CliArgs = cliArgs } ->
+
             let sourceReader =
                 Fable.Compiler.File.MakeSourceReader (
                     Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
@@ -243,7 +274,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
                     sourceReader
                     model.Checker
                     model.PathResolver
-                    model.CliArgs
+                    cliArgs
                     model.CrackerResponse
                     fileName
 
@@ -254,6 +285,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
                         Diagnostics = compiledFileResponse.Diagnostics
                     }
         with ex ->
+            logger.LogCritical ("tryCompileFile threw exception {ex}", ex)
             return Error ex.Message
     }
 
@@ -297,7 +329,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let! result = tryTypeCheckProject model.CoolCatResolver payload
+                        let! result = tryTypeCheckProject model payload
 
                         match result with
                         | Error error ->
@@ -316,7 +348,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                         return!
                             loop
                                 { model with
-                                    CliArgs = result.CliArgs
+                                    CrackerInput = Some result.CrackerInput
                                     Checker = result.Checker
                                     CrackerResponse = result.CrackerResponse
                                     SourceReader = result.SourceReader
@@ -330,13 +362,8 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                 member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
                             }
 
-                        let! result =
-                            tryCompileProject
-                                dummyPathResolver
-                                model.CliArgs
-                                model.CoolCatResolver
-                                model.CrackerResponse
-                                model.TypeCheckProjectResult
+                        let! result = tryCompileProject dummyPathResolver model
+
 
                         match result with
                         | Error error ->
@@ -369,12 +396,12 @@ type FableServer(sender : Stream, reader : Stream) as this =
             loop
                 {
                     CoolCatResolver = CoolCatResolver logger
-                    CliArgs = Unchecked.defaultof<CliArgs>
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>
                     SourceReader = Unchecked.defaultof<SourceReader>
                     PathResolver = Unchecked.defaultof<PathResolver>
                     TypeCheckProjectResult = Unchecked.defaultof<TypeCheckProjectResult>
+                    CrackerInput = None
                 }
         )
 

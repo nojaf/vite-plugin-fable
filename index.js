@@ -174,31 +174,38 @@ function logDiagnostics(logger, diagnostics) {
  * @function
  * @param {function} addWatchFile
  * @param {PluginState} state
+ * @param {String} sourceHook
  * @returns {Promise}
  */
-async function compileProject(addWatchFile, state) {
+async function compileProject(addWatchFile, state, sourceHook) {
   state.logger.info(
-    colors.blue(`[fable] Full compile started of ${state.fsproj}`),
+    colors.blue(
+      `[fable] ${sourceHook}: Full compile started of ${state.fsproj}`,
+    ),
     {
       timestamp: true,
     },
   );
   const fableLibrary = await getFableLibrary();
   state.logger.info(
-    colors.blue(`[fable] fable-library located at ${fableLibrary}`),
+    colors.blue(
+      `[fable] ${sourceHook}: fable-library located at ${fableLibrary}`,
+    ),
     {
       timestamp: true,
     },
   );
   state.logger.info(
-    colors.blue(`[buildStart] about to type-checked ${state.fsproj}.`),
+    colors.blue(
+      `[fable] ${sourceHook}: about to type-checked ${state.fsproj}.`,
+    ),
     {
       timestamp: true,
     },
   );
   const projectResponse = await getProjectFile(fableLibrary, state);
   state.logger.info(
-    colors.blue(`[buildStart] ${state.fsproj} was type-checked.`),
+    colors.blue(`[fable] ${sourceHook}: ${state.fsproj} was type-checked.`),
     {
       timestamp: true,
     },
@@ -214,7 +221,9 @@ async function compileProject(addWatchFile, state) {
 
   const compiledFSharpFiles = await tryInitialCompile(state);
   state.logger.info(
-    colors.blue(`[buildStart] Full compile completed of ${state.fsproj}`),
+    colors.blue(
+      `[fable] ${sourceHook}: Full compile completed of ${state.fsproj}`,
+    ),
     { timestamp: true },
   );
   state.projectOptions.sourceFiles.forEach((file) => {
@@ -237,9 +246,10 @@ async function compileProject(addWatchFile, state) {
  * @returns {Promise<void>}
  * @param {function} addWatchFile
  * @param {PluginState} state
+ * @param {String} sourceHook
  * @param {String} id
  */
-async function projectChanged(addWatchFile, state, id) {
+async function projectChanged(addWatchFile, state, sourceHook, id) {
   try {
     state.logger.info(
       colors.blue(`[fable] watch: dependent file ${id} changed.`),
@@ -249,7 +259,7 @@ async function projectChanged(addWatchFile, state, id) {
     );
     state.compilableFiles.clear();
     state.dependentFiles.clear();
-    await compileProject(addWatchFile, state);
+    await compileProject(addWatchFile, state, sourceHook);
   } catch (e) {
     state.logger.error(
       colors.red(`[fable] Unexpected failure during watchChange for ${id}`),
@@ -378,7 +388,7 @@ export default function fablePlugin(userConfig) {
           state.dotnetProcess.stdin,
           state.dotnetProcess.stdout,
         );
-        await compileProject(this.addWatchFile.bind(this), state);
+        await compileProject(this.addWatchFile.bind(this), state, "buildStart");
       } catch (e) {
         state.logger.error(
           colors.red(`[fable] Unexpected failure during buildStart: ${e}`),
@@ -419,7 +429,12 @@ export default function fablePlugin(userConfig) {
     watchChange: async function (id, change) {
       if (state.projectOptions) {
         if (state.dependentFiles.has(id)) {
-          await projectChanged(this.addWatchFile.bind(this), state, id);
+          await projectChanged(
+            this.addWatchFile.bind(this),
+            state,
+            "watchChange",
+            id,
+          );
         } else if (fsharpFileRegex.test(id) && state.compilableFiles.has(id)) {
           await fsharpFileChanged(this.load.bind(this), state, id);
         }

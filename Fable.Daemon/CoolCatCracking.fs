@@ -30,7 +30,12 @@ module CoolCatCracking =
         Decode.object (fun get -> get.Required.Field "Identity" Decode.string)
 
     /// Perform a design time build using the `dotnet msbuild` cli invocation.
-    let mkOptionsFromDesignTimeBuildAux (fsproj : FileInfo) (options : CrackerOptions) : Async<ProjectOptionsResponse> =
+    let mkOptionsFromDesignTimeBuildAux
+        (logger : ILogger)
+        (fsproj : FileInfo)
+        (options : CrackerOptions)
+        : Async<ProjectOptionsResponse>
+        =
         async {
             let! targetFrameworkJson =
                 let configuration =
@@ -40,6 +45,7 @@ module CoolCatCracking =
                         $"/p:Configuration=%s{options.Configuration}"
 
                 MSBuild.dotnet_msbuild
+                    logger
                     fsproj
                     $"{configuration} --getProperty:TargetFrameworks --getProperty:TargetFramework"
 
@@ -61,6 +67,8 @@ module CoolCatCracking =
                     tf
                 else
                     tfs.Split ';' |> Array.head
+
+            logger.LogDebug ("Perform design time build for {targetFramework}", targetFramework)
 
             // TRACE is typically present for fsproj projects
             let defines = options.FableOptions.Define
@@ -108,7 +116,7 @@ module CoolCatCracking =
             let arguments =
                 $"/restore /t:%s{targets} %s{properties}  -warnAsMessage:NU1608 --getItem:FscCommandLineArgs --getItem:ProjectReference --getProperty:OutputType"
 
-            let! json = MSBuild.dotnet_msbuild_with_defines fsproj arguments defines
+            let! json = MSBuild.dotnet_msbuild_with_defines logger fsproj arguments defines
 
             let decoder =
                 Decode.object (fun get ->
@@ -127,11 +135,17 @@ module CoolCatCracking =
             | Ok (options, projectReferences, outputType) ->
 
             if Array.isEmpty options then
+                logger.LogCritical (
+                    "Design time build for {fsproj} failed. CoreCompile was most likely skipped.",
+                    fsproj.FullName
+                )
+
                 return
                     failwithf
                         $"Design time build for %s{fsproj.FullName} failed. CoreCompile was most likely skipped. `dotnet clean` might help here.\ndotnet msbuild %s{fsproj.FullName} %s{arguments}"
             else
 
+            logger.LogDebug ("Design time build for {fsproj} completed.", fsproj)
             let options = mkOptions fsproj options
 
             let projectReferences =
@@ -192,7 +206,7 @@ type CoolCatResolver(logger : ILogger) =
                         if cached.ContainsKey fsproj.FullName then
                             return cached.[fsproj.FullName]
                         else
-                            match! Caching.mkProjectCacheKey options fsproj with
+                            match! Caching.mkProjectCacheKey logger options fsproj with
                             | Error error ->
                                 logger.LogError (
                                     "Could not construct cache key for {projectFile} {error}",
@@ -228,15 +242,18 @@ type CoolCatResolver(logger : ILogger) =
                     | Caching.InvalidCacheReason.DependentFileCountDoesNotMatch _
                     | Caching.InvalidCacheReason.DependentFileHashMismatch _ ->
                         try
-                            File.Delete currentCacheKey.CacheFile.FullName
-                            File.Delete currentCacheKey.FableModulesCacheFile.FullName
+                            if currentCacheKey.CacheFile.Exists then
+                                File.Delete currentCacheKey.CacheFile.FullName
+
+                            if currentCacheKey.FableModulesCacheFile.Exists then
+                                File.Delete currentCacheKey.FableModulesCacheFile.FullName
                         finally
                             ()
                     | Caching.InvalidCacheReason.FileDoesNotExist _ -> ()
 
                     // Perform design time build and cache result
                     logger.LogDebug ("About to perform design time build for {projectFile}", projectFile)
-                    let! result = CoolCatCracking.mkOptionsFromDesignTimeBuildAux fsproj options
+                    let! result = CoolCatCracking.mkOptionsFromDesignTimeBuildAux logger fsproj options
                     Caching.writeDesignTimeBuild currentCacheKey result
 
                     return result

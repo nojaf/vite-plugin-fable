@@ -4,9 +4,16 @@ open System
 open System.IO
 open System.Diagnostics
 open System.Reflection
+open Microsoft.Extensions.Logging
 
 /// Same as `dotnet_msbuild` but includes the defines as environment variables.
-let dotnet_msbuild_with_defines (fsproj : FileInfo) (args : string) (defines : string list) : Async<string> =
+let dotnet_msbuild_with_defines
+    (logger : ILogger)
+    (fsproj : FileInfo)
+    (args : string)
+    (defines : string list)
+    : Async<string>
+    =
     backgroundTask {
         let psi = ProcessStartInfo "dotnet"
         let pwd = Assembly.GetEntryAssembly().Location |> Path.GetDirectoryName
@@ -25,9 +32,17 @@ let dotnet_msbuild_with_defines (fsproj : FileInfo) (args : string) (defines : s
         ps.Start () |> ignore
         let output = ps.StandardOutput.ReadToEnd ()
         let error = ps.StandardError.ReadToEnd ()
-        do! ps.WaitForExitAsync ()
+        let ranToCompletion = ps.WaitForExit (TimeSpan.FromSeconds 5.)
+
+        if not ranToCompletion then
+            logger.LogCritical (
+                "dotnet msbuild \"{fsproj}\" {args}\n did not run until completion in time.",
+                fsproj.FullName,
+                args
+            )
 
         if not (String.IsNullOrWhiteSpace error) then
+            logger.LogCritical ("dotnet msbuild \"{fsproj}\" {args}\n did has {error}", fsproj.FullName, args, error)
             failwithf $"In %s{pwd}:\ndotnet msbuild \"%s{fsproj.FullName}\" %s{args} failed with\n%s{error}"
 
         return output.Trim ()
@@ -36,5 +51,5 @@ let dotnet_msbuild_with_defines (fsproj : FileInfo) (args : string) (defines : s
 
 /// Execute `dotnet msbuild` process and capture the stdout.
 /// Expected usage is with `--getProperty` and `--getItem` arguments.
-let dotnet_msbuild (fsproj : FileInfo) (args : string) : Async<string> =
-    dotnet_msbuild_with_defines fsproj args List.empty
+let dotnet_msbuild (logger : ILogger) (fsproj : FileInfo) (args : string) : Async<string> =
+    dotnet_msbuild_with_defines logger fsproj args List.empty
