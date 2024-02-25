@@ -81,7 +81,7 @@ async function getFableLibrary() {
  * Retrieves the project file. At this stage the project is type-checked but Fable did not compile anything.
  * @param {string} fableLibrary - Location of the fable-library node module.
  * @param {PluginState} state
- * @returns {Promise<{projectOptions: FSharpProjectOptions, diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
+ * @returns {Promise<{sourceFiles: string[], diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
  * @throws {Error} If the result from the endpoint is not a success case.
  */
 async function getProjectFile(fableLibrary, state) {
@@ -96,7 +96,7 @@ async function getProjectFile(fableLibrary, state) {
 
   if (result.case === "Success") {
     return {
-      projectOptions: result.fields[0],
+      sourceFiles: result.fields[0],
       diagnostics: result.fields[1],
       dependentFiles: result.fields[2],
     };
@@ -163,7 +163,7 @@ function logDiagnostics(logger, diagnostics) {
  * @property {import("node:child_process").ChildProcessWithoutNullStreams|null} dotnetProcess
  * @property {JSONRPCEndpoint|null} endpoint
  * @property {Map<string, string>} compilableFiles
- * @property {FSharpProjectOptions|null} projectOptions
+ * @property {Set<string>} sourceFiles
  * @property {string|null} fsproj
  * @property {string} configuration
  * @property {Set<string>} dependentFiles
@@ -211,7 +211,9 @@ async function compileProject(addWatchFile, state, sourceHook) {
     },
   );
   logDiagnostics(state.logger, projectResponse.diagnostics);
-  state.projectOptions = projectResponse.projectOptions;
+  for (const sf of projectResponse.sourceFiles) {
+    state.sourceFiles.add(normalizePath(sf));
+  }
 
   for (let dependentFile of projectResponse.dependentFiles) {
     dependentFile = normalizePath(dependentFile);
@@ -226,7 +228,7 @@ async function compileProject(addWatchFile, state, sourceHook) {
     ),
     { timestamp: true },
   );
-  state.projectOptions.sourceFiles.forEach((file) => {
+  state.sourceFiles.forEach((file) => {
     addWatchFile(file);
     const normalizedFileName = normalizePath(file);
     state.compilableFiles.set(normalizedFileName, compiledFSharpFiles[file]);
@@ -257,6 +259,7 @@ async function projectChanged(addWatchFile, state, sourceHook, id) {
         timestamp: true,
       },
     );
+    state.sourceFiles.clear();
     state.compilableFiles.clear();
     state.dependentFiles.clear();
     await compileProject(addWatchFile, state, sourceHook);
@@ -332,7 +335,7 @@ export default function fablePlugin(userConfig) {
   const state = {
     config: Object.assign({}, defaultConfig, userConfig),
     compilableFiles: new Map(),
-    projectOptions: null,
+    sourceFiles: new Set(),
     fsproj: null,
     configuration: "Debug",
     dependentFiles: new Set([]),
@@ -427,7 +430,7 @@ export default function fablePlugin(userConfig) {
       }
     },
     watchChange: async function (id, change) {
-      if (state.projectOptions) {
+      if (state.sourceFiles.size !== 0) {
         if (state.dependentFiles.has(id)) {
           await projectChanged(
             this.addWatchFile.bind(this),

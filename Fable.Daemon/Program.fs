@@ -339,7 +339,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                         replyChannel.Reply (
                             ProjectChangedResult.Success (
-                                result.CrackerResponse.ProjectOptions,
+                                result.CrackerResponse.ProjectOptions.SourceFiles,
                                 mapDiagnostics result.TypeCheckProjectResult.ProjectCheckResults.Diagnostics,
                                 result.DependentFiles
                             )
