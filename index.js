@@ -35,7 +35,7 @@ import colors from "picocolors";
  * @property {string} fileName - The file name where the diagnostic is found
  */
 
-const fsharpFileRegex = /\.(fs|fsi)$/;
+const fsharpFileRegex = /\.(fs|fsx)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(currentDir, "bin/Fable.Daemon.dll");
 
