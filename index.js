@@ -309,21 +309,20 @@ export default function fablePlugin(userConfig) {
    * An F# file part of state.compilableFiles has changed.
    * @returns {Promise<void>}
    * @param {function} load
-   * @param {String} id
+   * @param {String[]} files
    */
-  async function fsharpFileChanged(load, id) {
+  async function fsharpFileChanged(load, files) {
     try {
-      logInfo("watchChange", `${id} changed`);
       /** @type {FSharpDiscriminatedUnion} */
       const compilationResult = await state.endpoint.send("fable/compile", {
-        fileName: id,
+        fileNames: files,
       });
       if (
         compilationResult.case === "Success" &&
         compilationResult.fields &&
         compilationResult.fields.length > 0
       ) {
-        logInfo("watchChange", `${id} compiled`);
+        logInfo("watchChange", `${files} compiled`);
         const compiledFSharpFiles = compilationResult.fields[0];
         const diagnostics = compilationResult.fields[1];
         logDiagnostics(diagnostics);
@@ -339,13 +338,13 @@ export default function fablePlugin(userConfig) {
       } else {
         logError(
           "watchChange",
-          `compilation of ${id} failed, ${compilationResult.fields[0]}`,
+          `compilation of ${files} failed, ${compilationResult.fields[0]}`,
         );
       }
     } catch (e) {
       logCritical(
         "watchChange",
-        `compilation of ${id} failed, plugin could not handle this gracefully. ${e}`,
+        `compilation of ${files} failed, plugin could not handle this gracefully. ${e}`,
       );
     }
   }
@@ -397,8 +396,7 @@ export default function fablePlugin(userConfig) {
           .subscribe(async (changedFSharpFiles) => {
             const files = Array.from(changedFSharpFiles);
             logDebug("subscribe", files.join("\n"));
-            const last = files[files.length - 1];
-            await fsharpFileChanged(this.load.bind(this), last);
+            await fsharpFileChanged(this.load.bind(this), files);
           });
 
         // Track and batch the changed files that influence the main fsproj.
