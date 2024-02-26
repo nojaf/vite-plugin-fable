@@ -7,6 +7,10 @@ import { normalizePath } from "vite";
 import { transform } from "esbuild";
 import { debounceTime, filter, map, bufferTime, Subject } from "rxjs";
 import colors from "picocolors";
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
+import withResolvers from "promise.withresolvers";
+
+withResolvers.shim();
 
 /**
  * @typedef {Object} FSharpDiscriminatedUnion
@@ -48,6 +52,7 @@ import colors from "picocolors";
  * @property {Set<string>} dependentFiles
  * @property {import('rxjs').Subscription|null} changedFSharpFiles
  * @property {import('rxjs').Subscription|null} changedProjectFiles
+ * @property {any} hotPromiseWithResolvers
  */
 
 const fsharpFileRegex = /\.(fs|fsx)$/;
@@ -92,6 +97,7 @@ export default function fablePlugin(userConfig) {
     endpoint: null,
     changedFSharpFiles: null,
     changedProjectFiles: null,
+    hotPromiseWithResolvers: null,
   };
   const fsharpChangedFilesSubject = new Subject();
   const projectFileSubject = new Subject();
@@ -306,12 +312,11 @@ export default function fablePlugin(userConfig) {
   }
 
   /**
-   * An F# file part of state.compilableFiles has changed.
+   * F# files part of state.compilableFiles have changed.
    * @returns {Promise<void>}
-   * @param {function} load
    * @param {String[]} files
    */
-  async function fsharpFileChanged(load, files) {
+  async function fsharpFileChanged(files) {
     try {
       /** @type {FSharpDiscriminatedUnion} */
       const compilationResult = await state.endpoint.send("fable/compile", {
@@ -322,19 +327,20 @@ export default function fablePlugin(userConfig) {
         compilationResult.fields &&
         compilationResult.fields.length > 0
       ) {
-        logInfo("watchChange", `${files} compiled`);
         const compiledFSharpFiles = compilationResult.fields[0];
+
+        logDebug(
+          "fsharpFileChanged",
+          `\n${Object.keys(compiledFSharpFiles).join("\n")} compiled`,
+        );
+
+        for (const [key, value] of Object.entries(compiledFSharpFiles)) {
+          const normalizedFileName = normalizePath(key);
+          state.compilableFiles.set(normalizedFileName, value);
+        }
+
         const diagnostics = compilationResult.fields[1];
         logDiagnostics(diagnostics);
-        const loadPromises = Object.keys(compiledFSharpFiles).map((fsFile) => {
-          const normalizedFileName = normalizePath(fsFile);
-          state.compilableFiles.set(
-            normalizedFileName,
-            compiledFSharpFiles[fsFile],
-          );
-          return load({ id: normalizedFileName });
-        });
-        await Promise.all(loadPromises);
       } else {
         logError(
           "watchChange",
@@ -396,7 +402,11 @@ export default function fablePlugin(userConfig) {
           .subscribe(async (changedFSharpFiles) => {
             const files = Array.from(changedFSharpFiles);
             logDebug("subscribe", files.join("\n"));
-            await fsharpFileChanged(this.load.bind(this), files);
+            await fsharpFileChanged(files);
+            if (state.hotPromiseWithResolvers) {
+              state.hotPromiseWithResolvers.resolve();
+              state.hotPromiseWithResolvers = null;
+            }
           });
 
         // Track and batch the changed files that influence the main fsproj.
@@ -442,12 +452,22 @@ export default function fablePlugin(userConfig) {
     watchChange: async function (id, change) {
       if (state.sourceFiles.size !== 0 && state.dependentFiles.has(id)) {
         projectFileSubject.next(id);
-      } else if (fsharpFileRegex.test(id) && state.compilableFiles.has(id)) {
-        fsharpChangedFilesSubject.next(id);
       }
     },
-    handleHotUpdate: function ({ file, server, modules }) {
+    handleHotUpdate: async function ({ file, server, modules }) {
       if (state.compilableFiles.has(file)) {
+        logDebug("handleHotUpdate", `enter for ${file}`);
+        fsharpChangedFilesSubject.next(file);
+
+        // handleHotUpdate could be called concurrently because multiple files changed.
+        if (!state.hotPromiseWithResolvers) {
+          state.hotPromiseWithResolvers = Promise.withResolvers();
+        }
+
+        // The idea is to wait for a shared promise to resolve.
+        // This will resolve in the subscription of state.changedFSharpFiles
+        await state.hotPromiseWithResolvers.promise;
+        logDebug("handleHotUpdate", `leave for ${file}`);
         // Potentially a file that is not imported in the current graph was changed.
         // Vite should not try and hot update that module.
         return modules.filter((m) => m.importers.size !== 0);
@@ -458,11 +478,11 @@ export default function fablePlugin(userConfig) {
       if (state.dotnetProcess) {
         state.dotnetProcess.kill();
       }
-      if (state.changedFSharpFiles) {
-        state.changedFSharpFiles.unsubscribe();
-      }
       if (state.changedProjectFiles) {
         state.changedProjectFiles.unsubscribe();
+      }
+      if (state.changedFSharpFiles) {
+        state.changedFSharpFiles.unsubscribe();
       }
     },
   };
