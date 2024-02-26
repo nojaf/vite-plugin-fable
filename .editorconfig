@@ -3,7 +3,7 @@ root = true
 [*]
 end_of_line = lf
 
-[*.{fsproj,props}]
+[*.{fsproj,props,js}]
 indent_size = 2
 
 [*.{fs,fsi,fsx}]

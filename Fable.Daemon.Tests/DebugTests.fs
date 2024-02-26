@@ -1,8 +1,8 @@
 module Fable.Daemon.Tests
 
 open System
-open System.Diagnostics
 open System.IO
+open Microsoft.Extensions.Logging.Abstractions
 open NUnit.Framework
 open Nerdbank.Streams
 open StreamJsonRpc
@@ -58,15 +58,28 @@ let DebugTest () =
         Directory.SetCurrentDirectory (FileInfo(config.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
-        let daemon = new Program.FableServer (serverStream, serverStream)
+
+        let daemon =
+            new Program.FableServer (serverStream, serverStream, NullLogger.Instance)
+
         let client = new JsonRpc (clientStream, clientStream)
         client.StartListening ()
 
         let! typecheckResponse = daemon.ProjectChanged config
         ignore typecheckResponse
-        let! initialCompile = daemon.InitialCompile ()
 
-        printfn "response: %A" initialCompile
+        let! compileFiles =
+            daemon.CompileFiles
+                {
+                    FileNames =
+                        [|
+                            @"C:\Users\nojaf\Projects\ronnies.be\app\Components\Loader.fs"
+                            @"C:\Users\nojaf\Projects\ronnies.be\app\Pages\Rules.fsi"
+                            @"C:\Users\nojaf\Projects\ronnies.be\app\Bindings\ReactRouterDom.fs"
+                        |]
+                }
+
+        printfn "response: %A" compileFiles
         client.Dispose ()
         (daemon :> IDisposable).Dispose ()
 

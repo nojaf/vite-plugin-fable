@@ -52,4 +52,4 @@ type FileChangedResult =
     | Success of compiledFSharpFiles : Map<FullPath, JavaScript> * diagnostics : Diagnostic array
     | Error of string
 
-type CompileFilePayload = { FileName : FullPath }
+type CompileFilesPayload = { FileNames : FullPath array }

@@ -27,6 +27,7 @@
   "fundinding": "https://nojaf.com/",
   "dependencies": {
     "@fable-org/fable-library-js": "^1.1.0",
+    "rxjs": "^7.8.1",
     "ts-lsp-client": "^1.0.1",
     "vite": "^5.1.1"
   },

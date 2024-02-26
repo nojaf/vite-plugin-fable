@@ -20,7 +20,7 @@ open Fable.Daemon
 type Msg =
     | ProjectChanged of payload : ProjectChangedPayload * AsyncReplyChannel<ProjectChangedResult>
     | CompileFullProject of AsyncReplyChannel<FilesCompiledResult>
-    | CompileFile of fileName : string * AsyncReplyChannel<FileChangedResult>
+    | CompileFiles of fileNames : string list * AsyncReplyChannel<FileChangedResult>
     | Disconnect
 
 /// Input for every getFullProjectOpts
@@ -43,17 +43,6 @@ type Model =
         TypeCheckProjectResult : TypeCheckProjectResult
     }
 
-let logger : ILogger =
-    let envVar = Environment.GetEnvironmentVariable "VITE_PLUGIN_FABLE_DEBUG"
-
-    if not (String.IsNullOrWhiteSpace envVar) && not (envVar = "0") then
-        Debug.InMemoryLogger ()
-    else
-        NullLogger.Instance
-
-// Set Fable logger
-Log.setLogger Verbosity.Verbose logger
-
 let timeAsync f =
     async {
         let sw = Stopwatch.StartNew ()
@@ -75,6 +64,7 @@ type TypeCheckedProjectData =
     }
 
 let tryTypeCheckProject
+    (logger : ILogger)
     (model : Model)
     (payload : ProjectChangedPayload)
     : Async<Result<TypeCheckedProjectData, string>>
@@ -197,7 +187,7 @@ let private mapDiagnostics (ds : FSharpDiagnostic array) =
         }
     )
 
-let tryCompileProject (pathResolver : PathResolver) (model : Model) : Async<Result<CompiledProjectData, string>> =
+let tryCompileProject (logger : ILogger) (model : Model) : Async<Result<CompiledProjectData, string>> =
     async {
         try
             let cachedFableModuleFiles =
@@ -220,7 +210,7 @@ let tryCompileProject (pathResolver : PathResolver) (model : Model) : Async<Resu
 
             let! initialCompileResponse =
                 CodeServices.compileMultipleFilesToJavaScript
-                    pathResolver
+                    model.PathResolver
                     cliArgs
                     model.CrackerResponse
                     model.TypeCheckProjectResult
@@ -251,11 +241,45 @@ type CompiledFileData =
         Diagnostics : FSharpDiagnostic array
     }
 
-let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFileData, string>> =
+/// Find all the dependent files as efficient as possible.
+let rec getDependentFiles
+    (sourceReader : SourceReader)
+    (projectOptions : FSharpProjectOptions)
+    (checker : InteractiveChecker)
+    (inputFiles : string list)
+    (result : Set<string>)
+    : Async<Set<string>>
+    =
+    async {
+        match inputFiles with
+        | [] ->
+            // Filter out the signature files at the end.
+            return
+                result
+                |> Set.filter (fun f -> not (f.EndsWith (".fsi", StringComparison.Ordinal)))
+        | head :: tail ->
+
+        // If the file is already part of the collection, it can safely be skipped.
+        if result.Contains head then
+            return! getDependentFiles sourceReader projectOptions checker tail result
+        else
+
+        let! nextFiles = checker.GetDependentFiles (head, projectOptions.SourceFiles, sourceReader)
+        let nextResult = (result, nextFiles) ||> Array.fold (fun acc f -> Set.add f acc)
+
+        return! getDependentFiles sourceReader projectOptions checker tail nextResult
+    }
+
+let tryCompileFiles
+    (logger : ILogger)
+    (model : Model)
+    (fileNames : string list)
+    : Async<Result<CompiledFileData, string>>
+    =
     async {
         try
-            let fileName = Path.normalizePath fileName
-            logger.LogDebug ("tryCompileFile {fileName}", fileName)
+            let fileNames = List.map Path.normalizePath fileNames
+            logger.LogDebug ("tryCompileFile {fileNames}", fileNames)
 
             match model.CrackerInput with
             | None ->
@@ -263,20 +287,50 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
                 return raise (exn "tryCompileFile is entered without CrackerInput")
             | Some { CliArgs = cliArgs } ->
 
+            // Choose the signature file in the pair if it exists.
+            let mapLeadingFile (file : string) : string =
+                if file.EndsWith (".fsi", StringComparison.Ordinal) then
+                    file
+                else
+                    model.CrackerResponse.ProjectOptions.SourceFiles
+                    |> Array.tryFind (fun f -> f = String.Concat (file, "i"))
+                    |> Option.defaultValue file
+
             let sourceReader =
                 Fable.Compiler.File.MakeSourceReader (
                     Array.map Fable.Compiler.File model.CrackerResponse.ProjectOptions.SourceFiles
                 )
                 |> snd
 
+            let! filesToCompile =
+                let input = List.map mapLeadingFile fileNames
+                getDependentFiles sourceReader model.CrackerResponse.ProjectOptions model.Checker input Set.empty
+
+            logger.LogDebug ("About to compile {allFiles}", filesToCompile)
+
+            // Type-check the project up until the last file
+            let lastFile =
+                model.CrackerResponse.ProjectOptions.SourceFiles
+                |> Array.tryFindBack filesToCompile.Contains
+                |> Option.defaultValue (Array.last model.CrackerResponse.ProjectOptions.SourceFiles)
+
+            let! checkProjectResult =
+                model.Checker.ParseAndCheckProject (
+                    cliArgs.ProjectFile,
+                    model.CrackerResponse.ProjectOptions.SourceFiles,
+                    sourceReader,
+                    lastFile = lastFile
+                )
+
             let! compiledFileResponse =
-                Fable.Compiler.CodeServices.compileFileToJavaScript
-                    sourceReader
-                    model.Checker
+                Fable.Compiler.CodeServices.compileMultipleFilesToJavaScript
                     model.PathResolver
                     cliArgs
                     model.CrackerResponse
-                    fileName
+                    { model.TypeCheckProjectResult with
+                        ProjectCheckResults = checkProjectResult
+                    }
+                    filesToCompile
 
             return
                 Ok
@@ -289,7 +343,7 @@ let tryCompileFile (model : Model) (fileName : string) : Async<Result<CompiledFi
             return Error ex.Message
     }
 
-type FableServer(sender : Stream, reader : Stream) as this =
+type FableServer(sender : Stream, reader : Stream, logger : ILogger) as this =
     let jsonMessageFormatter = new SystemTextJsonFormatter ()
 
     do
@@ -329,7 +383,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
 
                     match msg with
                     | ProjectChanged (payload, replyChannel) ->
-                        let! result = tryTypeCheckProject model payload
+                        let! result = tryTypeCheckProject logger model payload
 
                         match result with
                         | Error error ->
@@ -356,14 +410,7 @@ type FableServer(sender : Stream, reader : Stream) as this =
                                 }
 
                     | CompileFullProject replyChannel ->
-                        let dummyPathResolver =
-                            { new PathResolver with
-                                member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
-                                member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
-                            }
-
-                        let! result = tryCompileProject dummyPathResolver model
-
+                        let! result = tryCompileProject logger model
 
                         match result with
                         | Error error ->
@@ -372,15 +419,10 @@ type FableServer(sender : Stream, reader : Stream) as this =
                         | Ok result ->
                             replyChannel.Reply (FilesCompiledResult.Success result.CompiledFSharpFiles)
 
-                            return!
-                                loop
-                                    { model with
-                                        PathResolver = dummyPathResolver
-                                    }
+                            return! loop model
 
-                    // TODO: this probably means the file was changed as well.
-                    | CompileFile (fileName, replyChannel) ->
-                        let! result = tryCompileFile model fileName
+                    | CompileFiles (fileNames, replyChannel) ->
+                        let! result = tryCompileFiles logger model fileNames
 
                         match result with
                         | Error error -> replyChannel.Reply (FileChangedResult.Error error)
@@ -399,7 +441,11 @@ type FableServer(sender : Stream, reader : Stream) as this =
                     Checker = Unchecked.defaultof<InteractiveChecker>
                     CrackerResponse = Unchecked.defaultof<CrackerResponse>
                     SourceReader = Unchecked.defaultof<SourceReader>
-                    PathResolver = Unchecked.defaultof<PathResolver>
+                    PathResolver =
+                        { new PathResolver with
+                            member _.TryPrecompiledOutPath (_sourceDir, _relativePath) = None
+                            member _.GetOrAddDeduplicateTargetDir (importDir, addTargetDir) = importDir
+                        }
                     TypeCheckProjectResult = Unchecked.defaultof<TypeCheckProjectResult>
                     CrackerInput = None
                 }
@@ -446,10 +492,14 @@ type FableServer(sender : Stream, reader : Stream) as this =
         }
 
     [<JsonRpcMethod("fable/compile", UseSingleObjectParameterDeserialization = true)>]
-    member _.CompileFile (p : CompileFilePayload) : Task<FileChangedResult> =
+    member _.CompileFiles (p : CompileFilesPayload) : Task<FileChangedResult> =
         task {
             logger.LogDebug ("enter \"fable/compile\" with {p}", p)
-            let! response = mailbox.PostAndAsyncReply (fun replyChannel -> Msg.CompileFile (p.FileName, replyChannel))
+
+            let! response =
+                mailbox.PostAndAsyncReply (fun replyChannel ->
+                    Msg.CompileFiles (List.ofArray p.FileNames, replyChannel)
+                )
 
             let logResponse =
                 match response with
@@ -465,8 +515,19 @@ type FableServer(sender : Stream, reader : Stream) as this =
 let input = Console.OpenStandardInput ()
 let output = Console.OpenStandardOutput ()
 
+let logger : ILogger =
+    let envVar = Environment.GetEnvironmentVariable "VITE_PLUGIN_FABLE_DEBUG"
+
+    if not (String.IsNullOrWhiteSpace envVar) && not (envVar = "0") then
+        Debug.InMemoryLogger ()
+    else
+        NullLogger.Instance
+
+// Set Fable logger
+Log.setLogger Verbosity.Verbose logger
+
 let daemon =
-    new FableServer (Console.OpenStandardOutput (), Console.OpenStandardInput ())
+    new FableServer (Console.OpenStandardOutput (), Console.OpenStandardInput (), logger)
 
 AppDomain.CurrentDomain.ProcessExit.Add (fun _ -> (daemon :> IDisposable).Dispose ())
 daemon.WaitForClose.GetAwaiter().GetResult ()
