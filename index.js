@@ -5,8 +5,7 @@ import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
 import { transform } from "esbuild";
-import { Subject } from "rxjs";
-import { bufferTime, filter, map } from "rxjs/operators";
+import { debounceTime, filter, map, bufferTime, Subject } from "rxjs";
 import colors from "picocolors";
 
 /**
@@ -48,6 +47,7 @@ import colors from "picocolors";
  * @property {string} configuration
  * @property {Set<string>} dependentFiles
  * @property {import('rxjs').Subscription|null} changedFSharpFiles
+ * @property {import('rxjs').Subscription|null} changedProjectFiles
  */
 
 const fsharpFileRegex = /\.(fs|fsx)$/;
@@ -85,14 +85,16 @@ export default function fablePlugin(userConfig) {
     sourceFiles: new Set(),
     fsproj: null,
     configuration: "Debug",
-    dependentFiles: new Set([]),
+    dependentFiles: new Set(),
     // @ts-ignore
     logger: { info: console.log, warn: console.warn, error: console.error },
     dotnetProcess: null,
     endpoint: null,
     changedFSharpFiles: null,
+    changedProjectFiles: null,
   };
   const fsharpChangedFilesSubject = new Subject();
+  const projectFileSubject = new Subject();
 
   /**
    * @param {String} prefix
@@ -259,7 +261,7 @@ export default function fablePlugin(userConfig) {
   async function compileProject(addWatchFile, sourceHook) {
     logInfo(sourceHook, `Full compile started of ${state.fsproj}`);
     const fableLibrary = await getFableLibrary();
-    logInfo(sourceHook, `fable-library located at ${fableLibrary}`);
+    logDebug(sourceHook, `fable-library located at ${fableLibrary}`);
     logInfo(sourceHook, `about to type-checked ${state.fsproj}.`);
     const projectResponse = await getProjectFile(fableLibrary);
     logInfo(sourceHook, `${state.fsproj} was type-checked.`);
@@ -384,6 +386,8 @@ export default function fablePlugin(userConfig) {
           state.dotnetProcess.stdin,
           state.dotnetProcess.stdout,
         );
+
+        // Track and batch the changed F# files.
         state.changedFSharpFiles = fsharpChangedFilesSubject
           .pipe(
             bufferTime(50),
@@ -392,10 +396,23 @@ export default function fablePlugin(userConfig) {
           )
           .subscribe(async (changedFSharpFiles) => {
             const files = Array.from(changedFSharpFiles);
-            logDebug("subscribe", files.join(","));
-            const last = files.findLast(() => true);
+            logDebug("subscribe", files.join("\n"));
+            const last = files[files.length - 1];
             await fsharpFileChanged(this.load.bind(this), last);
           });
+
+        // Track and batch the changed files that influence the main fsproj.
+        state.changedProjectFiles = projectFileSubject
+          .pipe(debounceTime(50))
+          .subscribe(async (id) => {
+            logDebug("watchChange", `${id} changed.`);
+            await projectChanged(
+              this.addWatchFile.bind(this),
+              "watchChange",
+              id,
+            );
+          });
+
         await compileProject(this.addWatchFile.bind(this), "buildStart");
       } catch (e) {
         logCritical("buildStart", `Unexpected failure during buildStart: ${e}`);
@@ -426,7 +443,7 @@ export default function fablePlugin(userConfig) {
     },
     watchChange: async function (id, change) {
       if (state.sourceFiles.size !== 0 && state.dependentFiles.has(id)) {
-        await projectChanged(this.addWatchFile.bind(this), "watchChange", id);
+        projectFileSubject.next(id);
       } else if (fsharpFileRegex.test(id) && state.compilableFiles.has(id)) {
         fsharpChangedFilesSubject.next(id);
       }
@@ -445,6 +462,9 @@ export default function fablePlugin(userConfig) {
       }
       if (state.changedFSharpFiles) {
         state.changedFSharpFiles.unsubscribe();
+      }
+      if (state.changedProjectFiles) {
+        state.changedProjectFiles.unsubscribe();
       }
     },
   };
