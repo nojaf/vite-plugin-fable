@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-fable",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "homepage": "https://nojaf.com/vite-plugin-fable/",
   "description": "",
   "main": "index.js",
@@ -19,6 +19,7 @@
     "Fable.Daemon/*.fsproj",
     "Fable.Daemon/**/*.fs",
     "Fable.Daemon/**/*.fsi",
+    "Fable.Daemon/debug",
     "!Fable.Daemon/obj"
   ],
   "keywords": [],
