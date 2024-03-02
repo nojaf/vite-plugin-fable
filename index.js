@@ -5,7 +5,7 @@ import path from "node:path";
 import { JSONRPCEndpoint } from "ts-lsp-client";
 import { normalizePath } from "vite";
 import { transform } from "esbuild";
-import { debounceTime, filter, map, bufferTime, Subject } from "rxjs";
+import { filter, map, bufferTime, Subject } from "rxjs";
 import colors from "picocolors";
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
 import withResolvers from "promise.withresolvers";
@@ -50,9 +50,37 @@ withResolvers.shim();
  * @property {string|null} fsproj
  * @property {string} configuration
  * @property {Set<string>} dependentFiles
- * @property {import('rxjs').Subscription|null} changedFSharpFiles
- * @property {import('rxjs').Subscription|null} changedProjectFiles
+ * @property {import('rxjs').Subscription|null} pendingChanges
  * @property {any} hotPromiseWithResolvers
+ */
+
+/**
+ * Represents an event where an F# file has changed.
+ * @typedef {Object} FSharpFileChanged
+ * @property {"FSharpFileChanged"} type - The type of the event, acts as a discriminator. Always "FSharpFileChanged" for this type.
+ * @property {string} file - The file that changed.
+ */
+
+/**
+ * Represents an event where a project file has changed.
+ * @typedef {Object} ProjectFileChanged
+ * @property {"ProjectFileChanged"} type - The type of the event, acts as a discriminator. Always "ProjectFileChanged" for this type.
+ * @property {string} file - The file that changed.
+ */
+
+/**
+ * Type that represents the possible hook events.
+ * This is an equivalent to the F# DU `HookEvent`.
+ * Use `type: "FSharpFileChanged"` for FSharpFileChanged events (and include the `file` property),
+ * or `type: "ProjectFileChanged"` for ProjectFileChanged events.
+ * @typedef {(FSharpFileChanged | ProjectFileChanged)} HookEvent
+ */
+
+/**
+ * @typedef {Object} PendingChangesState
+ * @property {Boolean} projectChanged
+ * @property {Set<string>} fsharpFiles
+ * @property {Set<string>} projectFiles
  */
 
 const fsharpFileRegex = /\.(fs|fsx)$/;
@@ -95,12 +123,12 @@ export default function fablePlugin(userConfig) {
     logger: { info: console.log, warn: console.warn, error: console.error },
     dotnetProcess: null,
     endpoint: null,
-    changedFSharpFiles: null,
-    changedProjectFiles: null,
+    pendingChanges: null,
     hotPromiseWithResolvers: null,
   };
-  const fsharpChangedFilesSubject = new Subject();
-  const projectFileSubject = new Subject();
+
+  /** @type {Subject<HookEvent>} **/
+  const pendingChangesSubject = new Subject();
 
   /**
    * @param {String} prefix
@@ -261,16 +289,15 @@ export default function fablePlugin(userConfig) {
    * Does a type-check and compilation of the state.fsproj
    * @function
    * @param {function} addWatchFile
-   * @param {String} sourceHook
    * @returns {Promise}
    */
-  async function compileProject(addWatchFile, sourceHook) {
-    logInfo(sourceHook, `Full compile started of ${state.fsproj}`);
+  async function compileProject(addWatchFile) {
+    logInfo("compileProject", `Full compile started of ${state.fsproj}`);
     const fableLibrary = await getFableLibrary();
-    logDebug(sourceHook, `fable-library located at ${fableLibrary}`);
-    logInfo(sourceHook, `about to type-checked ${state.fsproj}.`);
+    logDebug("compileProject", `fable-library located at ${fableLibrary}`);
+    logInfo("compileProject", `about to type-checked ${state.fsproj}.`);
     const projectResponse = await getProjectFile(fableLibrary);
-    logInfo(sourceHook, `${state.fsproj} was type-checked.`);
+    logInfo("compileProject", `${state.fsproj} was type-checked.`);
     logDiagnostics(projectResponse.diagnostics);
     for (const sf of projectResponse.sourceFiles) {
       state.sourceFiles.add(normalizePath(sf));
@@ -281,7 +308,7 @@ export default function fablePlugin(userConfig) {
       addWatchFile(dependentFile);
     }
     const compiledFSharpFiles = await tryInitialCompile();
-    logInfo(sourceHook, `Full compile completed of ${state.fsproj}`);
+    logInfo("compileProject", `Full compile completed of ${state.fsproj}`);
     state.sourceFiles.forEach((file) => {
       addWatchFile(file);
       const normalizedFileName = normalizePath(file);
@@ -293,20 +320,22 @@ export default function fablePlugin(userConfig) {
    * Either the project or a dependent file changed
    * @returns {Promise<void>}
    * @param {function} addWatchFile
-   * @param {String} sourceHook
-   * @param {String} id
+   * @param {Set<String>} projectFiles
    */
-  async function projectChanged(addWatchFile, sourceHook, id) {
+  async function projectChanged(addWatchFile, projectFiles) {
     try {
-      logInfo(sourceHook, `dependent file ${id} changed.`);
+      logInfo(
+        "projectChanged",
+        `dependent file ${Array.from(projectFiles).join("\n")} changed.`,
+      );
       state.sourceFiles.clear();
       state.compilableFiles.clear();
       state.dependentFiles.clear();
-      await compileProject(addWatchFile, sourceHook);
+      await compileProject(addWatchFile);
     } catch (e) {
       logCritical(
-        sourceHook,
-        `Unexpected failure during projectChanged for ${id}`,
+        "projectChanged",
+        `Unexpected failure during projectChanged for ${projectFiles}`,
       );
     }
   }
@@ -355,6 +384,30 @@ export default function fablePlugin(userConfig) {
     }
   }
 
+  /**
+   * @param {PendingChangesState} acc
+   * @param {HookEvent} e
+   * @return {PendingChangesState}
+   */
+  function reducePendingChange(acc, e) {
+    if (e.type === "FSharpFileChanged") {
+      return {
+        projectChanged: acc.projectChanged,
+        fsharpFiles: acc.fsharpFiles.add(e.file),
+        projectFiles: acc.projectFiles,
+      };
+    } else if (e.type === "ProjectFileChanged") {
+      return {
+        projectChanged: true,
+        fsharpFiles: acc.fsharpFiles,
+        projectFiles: acc.projectFiles.add(e.file),
+      };
+    } else {
+      logWarn("pendingChanges", `Unexpected pending change ${e}`);
+      return acc;
+    }
+  }
+
   return {
     name: "vite-plugin-fable",
     enforce: "pre",
@@ -392,36 +445,46 @@ export default function fablePlugin(userConfig) {
           state.dotnetProcess.stdout,
         );
 
-        // Track and batch the changed F# files.
-        state.changedFSharpFiles = fsharpChangedFilesSubject
+        state.pendingChanges = pendingChangesSubject
           .pipe(
             bufferTime(50),
-            map((changes) => new Set(changes)),
-            filter((changes) => changes.size > 0),
+            map((events) => {
+              return events.reduce(reducePendingChange, {
+                projectChanged: false,
+                fsharpFiles: new Set(),
+                projectFiles: new Set(),
+              });
+            }),
+            filter(
+              (state) => state.projectChanged || state.fsharpFiles.size > 0,
+            ),
           )
-          .subscribe(async (changedFSharpFiles) => {
-            const files = Array.from(changedFSharpFiles);
-            logDebug("subscribe", files.join("\n"));
-            await fsharpFileChanged(files);
-            if (state.hotPromiseWithResolvers) {
-              state.hotPromiseWithResolvers.resolve();
-              state.hotPromiseWithResolvers = null;
+          .subscribe(async (pendingChanges) => {
+            if (pendingChanges.projectChanged) {
+              await projectChanged(
+                this.addWatchFile.bind(this),
+                pendingChanges.projectFiles,
+              );
+              if (state.hotPromiseWithResolvers) {
+                state.hotPromiseWithResolvers.resolve();
+                state.hotPromiseWithResolvers = null;
+              }
+            } else {
+              const files = Array.from(pendingChanges.fsharpFiles);
+              logDebug("subscribe", files.join("\n"));
+              await fsharpFileChanged(files);
+              if (state.hotPromiseWithResolvers) {
+                state.hotPromiseWithResolvers.resolve();
+                state.hotPromiseWithResolvers = null;
+              }
             }
           });
 
-        // Track and batch the changed files that influence the main fsproj.
-        state.changedProjectFiles = projectFileSubject
-          .pipe(debounceTime(50))
-          .subscribe(async (id) => {
-            logDebug("watchChange", `${id} changed.`);
-            await projectChanged(
-              this.addWatchFile.bind(this),
-              "watchChange",
-              id,
-            );
-          });
-
-        await compileProject(this.addWatchFile.bind(this), "buildStart");
+        logDebug("buildStart", "Initial project file change!");
+        pendingChangesSubject.next({
+          type: "ProjectFileChanged",
+          file: state.fsproj,
+        });
       } catch (e) {
         logCritical("buildStart", `Unexpected failure during buildStart: ${e}`);
       }
@@ -451,13 +514,16 @@ export default function fablePlugin(userConfig) {
     },
     watchChange: async function (id, change) {
       if (state.sourceFiles.size !== 0 && state.dependentFiles.has(id)) {
-        projectFileSubject.next(id);
+        pendingChangesSubject.next({ type: "ProjectFileChanged", file: id });
       }
     },
     handleHotUpdate: async function ({ file, server, modules }) {
       if (state.compilableFiles.has(file)) {
         logDebug("handleHotUpdate", `enter for ${file}`);
-        fsharpChangedFilesSubject.next(file);
+        pendingChangesSubject.next({
+          type: "FSharpFileChanged",
+          file: file,
+        });
 
         // handleHotUpdate could be called concurrently because multiple files changed.
         if (!state.hotPromiseWithResolvers) {
@@ -478,11 +544,8 @@ export default function fablePlugin(userConfig) {
       if (state.dotnetProcess) {
         state.dotnetProcess.kill();
       }
-      if (state.changedProjectFiles) {
-        state.changedProjectFiles.unsubscribe();
-      }
-      if (state.changedFSharpFiles) {
-        state.changedFSharpFiles.unsubscribe();
+      if (state.pendingChanges) {
+        state.pendingChanges.unsubscribe();
       }
     },
   };
