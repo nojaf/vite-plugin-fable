@@ -52,6 +52,7 @@ withResolvers.shim();
  * @property {Set<string>} dependentFiles
  * @property {import('rxjs').Subscription|null} pendingChanges
  * @property {any} hotPromiseWithResolvers
+ * @property {Boolean} isBuild
  */
 
 /**
@@ -125,6 +126,7 @@ export default function fablePlugin(userConfig) {
     endpoint: null,
     pendingChanges: null,
     hotPromiseWithResolvers: null,
+    isBuild: false,
   };
 
   /** @type {Subject<HookEvent>} **/
@@ -415,6 +417,7 @@ export default function fablePlugin(userConfig) {
       state.logger = resolvedConfig.logger;
       state.configuration =
         resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
+      state.isBuild = resolvedConfig.command === "build";
       logDebug("configResolved", `Configuration: ${state.configuration}`);
       const configDir = path.dirname(resolvedConfig.configFile);
 
@@ -445,46 +448,53 @@ export default function fablePlugin(userConfig) {
           state.dotnetProcess.stdout,
         );
 
-        state.pendingChanges = pendingChangesSubject
-          .pipe(
-            bufferTime(50),
-            map((events) => {
-              return events.reduce(reducePendingChange, {
-                projectChanged: false,
-                fsharpFiles: new Set(),
-                projectFiles: new Set(),
-              });
-            }),
-            filter(
-              (state) => state.projectChanged || state.fsharpFiles.size > 0,
-            ),
-          )
-          .subscribe(async (pendingChanges) => {
-            if (pendingChanges.projectChanged) {
-              await projectChanged(
-                this.addWatchFile.bind(this),
-                pendingChanges.projectFiles,
-              );
-              if (state.hotPromiseWithResolvers) {
-                state.hotPromiseWithResolvers.resolve();
-                state.hotPromiseWithResolvers = null;
+        if (state.isBuild) {
+          await projectChanged(
+            this.addWatchFile.bind(this),
+            new Set([state.fsproj]),
+          );
+        } else {
+          state.pendingChanges = pendingChangesSubject
+            .pipe(
+              bufferTime(50),
+              map((events) => {
+                return events.reduce(reducePendingChange, {
+                  projectChanged: false,
+                  fsharpFiles: new Set(),
+                  projectFiles: new Set(),
+                });
+              }),
+              filter(
+                (state) => state.projectChanged || state.fsharpFiles.size > 0,
+              ),
+            )
+            .subscribe(async (pendingChanges) => {
+              if (pendingChanges.projectChanged) {
+                await projectChanged(
+                  this.addWatchFile.bind(this),
+                  pendingChanges.projectFiles,
+                );
+                if (state.hotPromiseWithResolvers) {
+                  state.hotPromiseWithResolvers.resolve();
+                  state.hotPromiseWithResolvers = null;
+                }
+              } else {
+                const files = Array.from(pendingChanges.fsharpFiles);
+                logDebug("subscribe", files.join("\n"));
+                await fsharpFileChanged(files);
+                if (state.hotPromiseWithResolvers) {
+                  state.hotPromiseWithResolvers.resolve();
+                  state.hotPromiseWithResolvers = null;
+                }
               }
-            } else {
-              const files = Array.from(pendingChanges.fsharpFiles);
-              logDebug("subscribe", files.join("\n"));
-              await fsharpFileChanged(files);
-              if (state.hotPromiseWithResolvers) {
-                state.hotPromiseWithResolvers.resolve();
-                state.hotPromiseWithResolvers = null;
-              }
-            }
-          });
+            });
 
-        logDebug("buildStart", "Initial project file change!");
-        pendingChangesSubject.next({
-          type: "ProjectFileChanged",
-          file: state.fsproj,
-        });
+          logDebug("buildStart", "Initial project file change!");
+          pendingChangesSubject.next({
+            type: "ProjectFileChanged",
+            file: state.fsproj,
+          });
+        }
       } catch (e) {
         logCritical("buildStart", `Unexpected failure during buildStart: ${e}`);
       }
