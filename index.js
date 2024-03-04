@@ -337,7 +337,7 @@ export default function fablePlugin(userConfig) {
     } catch (e) {
       logCritical(
         "projectChanged",
-        `Unexpected failure during projectChanged for ${projectFiles}`,
+        `Unexpected failure during projectChanged for ${Array.from(projectFiles)},\n${e}`,
       );
     }
   }
@@ -419,7 +419,8 @@ export default function fablePlugin(userConfig) {
         resolvedConfig.env.MODE === "production" ? "Release" : "Debug";
       state.isBuild = resolvedConfig.command === "build";
       logDebug("configResolved", `Configuration: ${state.configuration}`);
-      const configDir = path.dirname(resolvedConfig.configFile);
+      const configDir =
+        resolvedConfig.configFile && path.dirname(resolvedConfig.configFile);
 
       if (state.config && state.config.fsproj) {
         state.fsproj = state.config.fsproj;
@@ -474,26 +475,25 @@ export default function fablePlugin(userConfig) {
                   this.addWatchFile.bind(this),
                   pendingChanges.projectFiles,
                 );
-                if (state.hotPromiseWithResolvers) {
-                  state.hotPromiseWithResolvers.resolve();
-                  state.hotPromiseWithResolvers = null;
-                }
               } else {
                 const files = Array.from(pendingChanges.fsharpFiles);
                 logDebug("subscribe", files.join("\n"));
                 await fsharpFileChanged(files);
-                if (state.hotPromiseWithResolvers) {
-                  state.hotPromiseWithResolvers.resolve();
-                  state.hotPromiseWithResolvers = null;
-                }
+              }
+
+              if (state.hotPromiseWithResolvers) {
+                state.hotPromiseWithResolvers.resolve();
+                state.hotPromiseWithResolvers = null;
               }
             });
 
           logDebug("buildStart", "Initial project file change!");
+          state.hotPromiseWithResolvers = Promise.withResolvers();
           pendingChangesSubject.next({
             type: "ProjectFileChanged",
             file: state.fsproj,
           });
+          await state.hotPromiseWithResolvers.promise;
         }
       } catch (e) {
         logCritical("buildStart", `Unexpected failure during buildStart: ${e}`);
