@@ -95,3 +95,8 @@ header .start strong {
     stroke: var(--fable-300) !important;
   }
 }
+
+vpf-command {
+  display: block;
+  margin-block: var(--spacing-400);
+}
