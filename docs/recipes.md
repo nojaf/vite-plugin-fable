@@ -77,4 +77,52 @@ export default defineConfig({
 
 Note that you will still need to tweak the `react` plugin with `include` to enable the fast refresh transformation.
 
+### Plain Fable.React
+
+If you are for some reason using [Fable.React](https://www.nuget.org/packages/Fable.React) without [Feliz.CompilerPlugins](https://www.nuget.org/packages/Feliz.CompilerPlugins), there is one gotcha to get fast refresh working.
+
+`Fable.React` will use the [old JSX output](https://legacy.reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html).
+The `@vitejs/plugin-react` needs to respect that in the configuration:
+
+```js
+import react from "@vitejs/plugin-react";
+import fable from "vite-plugin-fable";
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    fable(),
+    react({ include: /\.(fs|js|jsx|ts|tsx)$/, jsxRuntime: "classic" }),
+  ],
+});
+```
+
+However, this is not enough for the fast refresh wrapper to be added.  
+⚠️ The React plugin will **specifically** look for a `import React from "react"` statement.
+
+```fsharp
+module Component
+
+open Fable.React
+open Fable.React.Props
+
+// Super important for fast refresh to work in "classic" mode.
+// The [<ReactComponent>] attribute from Feliz.CompilerPlugin will add for you.
+// But here, we are not using that and we need to add this ourselves.
+Fable.Core.JsInterop.emitJsStatement () "import React from \"react\""
+
+let App () =
+    let counterHook = Hooks.useState(0)
+
+    div [] [
+        h1 [] [ str "Hey you!" ]
+        p [] [
+            ofInt counterHook.current
+        ]
+        button [ OnClick (fun _ -> counterHook.update(fun c -> c + 1))] [
+            str "Increase"
+        ]
+    ]
+```
+
 [Next]({{fsdocs-next-page-link}})

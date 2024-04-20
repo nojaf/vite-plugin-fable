@@ -487,3 +487,6 @@ $RECYCLE.BIN/
 tmp/
 .fsdocs/
 output/
+
+# VSCode
+.vscode/
