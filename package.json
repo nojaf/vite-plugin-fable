@@ -27,18 +27,18 @@
   "license": "Apache-2.0",
   "fundinding": "https://nojaf.com/",
   "dependencies": {
-    "@fable-org/fable-library-js": "^1.1.0",
-    "promise.withresolvers": "^1.0.2",
+    "@fable-org/fable-library-js": "^1.4.0",
+    "promise.withresolvers": "^1.0.3",
     "rxjs": "^7.8.1",
-    "ts-lsp-client": "^1.0.1",
-    "vite": "^5.1.1"
+    "ts-lsp-client": "^1.0.3"
   },
   "peerDependencies": {
-    "esbuild": "^0.19.3"
+    "esbuild": "*",
+    "vite": "^5"  
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
-    "prettier": "3.2.4",
-    "typescript": "5.4.1-rc"
+    "prettier": "3.2.5",
+    "typescript": "5.4.5"
   }
 }
