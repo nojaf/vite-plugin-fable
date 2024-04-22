@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+          name="viewport">
+    <meta content="ie=edge" http-equiv="X-UA-Compatible">
+    <title>vite-plugin-fable | debug tool</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        :root {
+            --spacing-25: 2px;
+            --spacing-50: 4px;
+            --spacing-100: 8px;
+            --spacing-200: 12px;
+            --spacing-300: 16px;
+            --spacing-400: 24px;
+            --spacing-500: 32px;
+            --spacing-600: 48px;
+            --spacing-700: 64px;
+            --spacing-800: 96px;
+            --spacing-900: 128px;
+            --spacing-950: 192px;
+
+            --font-50: 12px;
+            --font-100: 14px;
+            --font-200: 16px;
+            --font-300: 18px;
+            --font-400: 20px;
+            --font-500: 24px;
+            --font-600: 30px;
+            --font-700: 36px;
+            --font-800: 48px;
+            --font-900: 60px;
+            --font-950: 72px;
+            
+            --radius: 6px;
+            --system-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        }
+
+        body {
+            font-family: var(--system-font);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        nav {
+            padding: var(--spacing-200);
+            border-bottom: 1px solid black;
+            
+            h1 {
+                margin: 0;
+            }
+        }
+        
+        ul {
+            list-style: none;
+            padding: var(--spacing-200);
+            
+            li {
+                display: flex;
+                align-items: baseline;
+                gap: var(--spacing-300);
+                margin-bottom: var(--spacing-100);
+                
+                strong {
+                    color: white;
+                    background-color: black;
+                    padding: var(--spacing-25);
+                    border-radius: var(--radius);
+                    font-size: var(--font-50);
+                    font-weight: normal;
+                    text-transform: lowercase;
+                    min-width: 80px;
+                    text-align: center;
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+<nav>
+    <h1>vite-plugin-fable debug tool</h1>
+</nav>
+<ul></ul>
+<script type="module">
+    const ul = document.querySelector("ul");
+    fetch('/all').then(response => response.text()).then(items => {
+        ul.innerHTML = items;
+    })
+
+    const socket = new WebSocket(`ws://${location.host}/ws`);
+    socket.onmessage = function(event) {
+        const div = document.createElement("div");
+        div.innerHTML = event.data;
+        for (const li of div.children) {
+            ul.appendChild(li);
+        }
+        ul.lastElementChild.scrollIntoView();
+    };
+</script>
+</body>
+</html>
