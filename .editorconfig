@@ -21,3 +21,6 @@ fsharp_bar_before_discriminated_union_declaration = true
 
 [Fable.Daemon/Debug.fs]
 fsharp_experimental_elmish=true
+
+[sample-project/Component.fs]
+fsharp_experimental_elmish=true

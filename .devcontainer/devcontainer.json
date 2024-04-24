@@ -1,42 +1,40 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/dotnet-fsharp
 {
-	"name": "vite-plugin-fable",
-	"image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  "name": "vite-plugin-fable",
+  "image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  // Configure tool-specific properties.
+  "customizations": {
+    // Configure properties specific to VS Code.
+    "vscode": {
+      // Add the IDs of extensions you want installed when the container is created.
+      "extensions": ["Ionide.Ionide-fsharp@7.18.2", "ms-vscode.csharp"],
+      "settings": {
+        "FSharp.useSdkScripts": true,
+        "FSharp.fsac.netCoreDllPath": "/root/.vscode-server/extensions/ionide.ionide-fsharp-7.18.2/bin/net7.0/fsautocomplete.dll"
+      }
+    }
+  },
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2.4.2": {},
+    "ghcr.io/devcontainers/features/git:1.2.0": {},
+    "ghcr.io/devcontainers/features/github-cli:1.0.11": {},
+    "ghcr.io/devcontainers/features/dotnet:2.0.5": {},
+    "ghcr.io/michidk/devcontainers-features/bun:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "21"
+    },
+    "ghcr.io/devcontainers/features/powershell:1": {}
+  },
+  "postCreateCommand": ".devcontainer/init.sh",
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+   "forwardPorts": [ 4000 ]
 
-	// Configure tool-specific properties.
-	"customizations": {
-		// Configure properties specific to VS Code.
-		"vscode": {		
-			// Add the IDs of extensions you want installed when the container is created.
-			"extensions": [
-				"Ionide.Ionide-fsharp@7.18.2",
-				"ms-vscode.csharp"
-			],
-			"settings": {
-				"FSharp.useSdkScripts":true,
-				"FSharp.fsac.netCoreDllPath": "/root/.vscode-server/extensions/ionide.ionide-fsharp-7.18.2/bin/net7.0/fsautocomplete.dll"
-			}
-		}
-	},
-	"features": {
-		"ghcr.io/devcontainers/features/common-utils:2.4.2": {},
-        "ghcr.io/devcontainers/features/git:1.2.0": {},
-        "ghcr.io/devcontainers/features/github-cli:1.0.11": {},
-        "ghcr.io/devcontainers/features/dotnet:2.0.5": {},
-		"ghcr.io/michidk/devcontainers-features/bun:1": {}
-	},
-	"postCreateCommand": ".devcontainer/init.sh"
+  // Use 'postCreateCommand' to run commands after the container is created.
+  // "postCreateCommand": "dotnet restore",
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "dotnet restore",
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
 }
