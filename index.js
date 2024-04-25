@@ -12,78 +12,6 @@ import withResolvers from "promise.withresolvers";
 
 withResolvers.shim();
 
-/**
- * @typedef {Object} FSharpDiscriminatedUnion
- * @property {string} case - The name of the case (will have same casing as in type definition).
- * @property {any[]} fields - The fields associated with the case.
- */
-
-/**
- * @typedef {Object} FSharpProjectOptions
- * @property {string[]} sourceFiles
- */
-
-/**
- * @typedef {Object} DiagnosticRange
- * @property {number} startLine - The start line of the diagnostic range
- * @property {number} startColumn - The start column of the diagnostic range
- * @property {number} endLine - The end line of the diagnostic range
- * @property {number} endColumn - The end column of the diagnostic range
- */
-
-/**
- * @typedef {Object} Diagnostic
- * @property {string} errorNumberText - The error number text
- * @property {string} message - The diagnostic message
- * @property {DiagnosticRange} range - The range where the diagnostic occurs
- * @property {string} severity - The severity of the diagnostic
- * @property {string} fileName - The file name where the diagnostic is found
- */
-
-/** @typedef {Object} PluginState
- * @property {PluginOptions} config
- * @property {import('vite').Logger} logger
- * @property {import("node:child_process").ChildProcessWithoutNullStreams|null} dotnetProcess
- * @property {JSONRPCEndpoint|null} endpoint
- * @property {Map<string, string>} compilableFiles
- * @property {Set<string>} sourceFiles
- * @property {string|null} fsproj
- * @property {string} configuration
- * @property {Set<string>} dependentFiles
- * @property {import('rxjs').Subscription|null} pendingChanges
- * @property {any} hotPromiseWithResolvers
- * @property {Boolean} isBuild
- */
-
-/**
- * Represents an event where an F# file has changed.
- * @typedef {Object} FSharpFileChanged
- * @property {"FSharpFileChanged"} type - The type of the event, acts as a discriminator. Always "FSharpFileChanged" for this type.
- * @property {string} file - The file that changed.
- */
-
-/**
- * Represents an event where a project file has changed.
- * @typedef {Object} ProjectFileChanged
- * @property {"ProjectFileChanged"} type - The type of the event, acts as a discriminator. Always "ProjectFileChanged" for this type.
- * @property {string} file - The file that changed.
- */
-
-/**
- * Type that represents the possible hook events.
- * This is an equivalent to the F# DU `HookEvent`.
- * Use `type: "FSharpFileChanged"` for FSharpFileChanged events (and include the `file` property),
- * or `type: "ProjectFileChanged"` for ProjectFileChanged events.
- * @typedef {(FSharpFileChanged | ProjectFileChanged)} HookEvent
- */
-
-/**
- * @typedef {Object} PendingChangesState
- * @property {Boolean} projectChanged
- * @property {Set<string>} fsharpFiles
- * @property {Set<string>} projectFiles
- */
-
 const fsharpFileRegex = /\.(fs|fsx)$/;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const fableDaemon = path.join(currentDir, "bin/Fable.Daemon.dll");
@@ -112,7 +40,7 @@ const defaultConfig = { jsx: null, noReflection: false, exclude: [] };
  * @returns {import('vite').Plugin} A Vite plugin object with the standard structure and hooks.
  */
 export default function fablePlugin(userConfig) {
-  /** @type {PluginState} */
+  /** @type {import("./types.js").PluginState} */
   const state = {
     config: Object.assign({}, defaultConfig, userConfig),
     compilableFiles: new Map(),
@@ -129,7 +57,7 @@ export default function fablePlugin(userConfig) {
     isBuild: false,
   };
 
-  /** @type {Subject<HookEvent>} **/
+  /** @type {Subject<import("./types.js").HookEvent>} **/
   const pendingChangesSubject = new Subject();
 
   /**
@@ -217,11 +145,11 @@ export default function fablePlugin(userConfig) {
   /**
    * Retrieves the project file. At this stage the project is type-checked but Fable did not compile anything.
    * @param {string} fableLibrary - Location of the fable-library node module.
-   * @returns {Promise<{sourceFiles: string[], diagnostics: Diagnostic[], dependentFiles: string[]}>} A promise that resolves to an object containing the project options and compiled files.
+   * @returns {Promise<import("./types.js").ProjectFileData>} A promise that resolves to an object containing the project options and compiled files.
    * @throws {Error} If the result from the endpoint is not a success case.
    */
   async function getProjectFile(fableLibrary) {
-    /** @type {FSharpDiscriminatedUnion} */
+    /** @type {import("./types.js").FSharpDiscriminatedUnion} */
     const result = await state.endpoint.send("fable/project-changed", {
       configuration: state.configuration,
       project: state.fsproj,
@@ -248,7 +176,7 @@ export default function fablePlugin(userConfig) {
    * @throws {Error} If the result from the endpoint is not a success case.
    */
   async function tryInitialCompile() {
-    /** @type {FSharpDiscriminatedUnion} */
+    /** @type {import("./types.js").FSharpDiscriminatedUnion} */
     const result = await state.endpoint.send("fable/initial-compile");
 
     if (result.case === "Success") {
@@ -260,7 +188,7 @@ export default function fablePlugin(userConfig) {
 
   /**
    * @function
-   * @param {Diagnostic} diagnostic
+   * @param {import("./types.js").Diagnostic} diagnostic
    * @returns {string}
    */
   function formatDiagnostic(diagnostic) {
@@ -269,7 +197,7 @@ export default function fablePlugin(userConfig) {
 
   /**
    * @function
-   * @param {Diagnostic[]} diagnostics - An array of Diagnostic objects to be logged.
+   * @param {import("./types.js").Diagnostic[]} diagnostics - An array of Diagnostic objects to be logged.
    */
   function logDiagnostics(diagnostics) {
     for (const diagnostic of diagnostics) {
@@ -349,7 +277,7 @@ export default function fablePlugin(userConfig) {
    */
   async function fsharpFileChanged(files) {
     try {
-      /** @type {FSharpDiscriminatedUnion} */
+      /** @type {import("./types.js").FSharpDiscriminatedUnion} */
       const compilationResult = await state.endpoint.send("fable/compile", {
         fileNames: files,
       });
@@ -387,9 +315,9 @@ export default function fablePlugin(userConfig) {
   }
 
   /**
-   * @param {PendingChangesState} acc
-   * @param {HookEvent} e
-   * @return {PendingChangesState}
+   * @param {import("./types.js").PendingChangesState} acc
+   * @param {import("./types.js").HookEvent} e
+   * @return {import("./types.js").PendingChangesState}
    */
   function reducePendingChange(acc, e) {
     if (e.type === "FSharpFileChanged") {

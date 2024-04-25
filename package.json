@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "bunx --bun prettier ./package.json ./index.js ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css ./docs/scripts/*.js ./.devcontainer/devcontainer.json --write && dotnet fantomas .",
+    "format": "bunx --bun prettier ./package.json ./index.js ./types.d.ts ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css ./docs/scripts/*.js ./.devcontainer/devcontainer.json --write && dotnet fantomas .",
     "postinstall": "dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release --ucr -p:PublishReadyToRun=true -o ./bin",
     "lint": "bunx tsc"
   },
