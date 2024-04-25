@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "bunx --bun prettier ./package.json ./index.js ./types.d.ts ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css ./docs/scripts/*.js ./.devcontainer/devcontainer.json --write && dotnet fantomas .",
+    "format": "bunx --bun prettier ./package.json ./index.js ./types.d.ts ./sample-project/vite.config.js ./docs/*.md ./docs/content/*.css ./docs/scripts/*.js ./docs/*.html ./.devcontainer/devcontainer.json --write && dotnet fantomas .",
     "postinstall": "dotnet publish Fable.Daemon/Fable.Daemon.fsproj --nologo -c Release --ucr -p:PublishReadyToRun=true -o ./bin",
     "lint": "bunx tsc"
   },
@@ -38,6 +38,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
+    "copy-to-clipboard": "^3.3.3",
+    "lit": "^3.1.3",
     "prettier": "3.2.5",
     "typescript": "5.4.5"
   }

@@ -1,13 +1,9 @@
-import { LitElement, html, css } from "https://esm.sh/lit@3.1.3";
-import copy from "https://esm.sh/copy-to-clipboard@3.3.3";
+import { LitElement, html, css } from "lit";
+import copy from "copy-to-clipboard";
 
 const COMMAND_STORAGE_KEY = "vpf_command";
 
 class Command extends LitElement {
-  static properties = {
-    name: { type: String },
-  };
-
   static properties = {
     // {state: true} means Lit sees these class properties as internal.
     // Note that this is meta info and is not the same thing as this._value down below.
@@ -17,7 +13,9 @@ class Command extends LitElement {
 
   constructor() {
     super();
+    /** @type String */
     this._value = "";
+    /** @type Boolean */
     this._clicked = false;
     this.onValueChanged = this.onValueChanged.bind(this);
   }
@@ -87,6 +85,9 @@ class Command extends LitElement {
     }
   `;
 
+  /**
+   * @param {String} value
+   */
   onOptionClick(value) {
     localStorage.setItem(COMMAND_STORAGE_KEY, value);
     const event = new CustomEvent(COMMAND_STORAGE_KEY, {
@@ -95,10 +96,12 @@ class Command extends LitElement {
     window.dispatchEvent(event);
   }
 
+  /** @param ev {CustomEvent<string>} */
   onValueChanged(ev) {
     this._value = ev.detail;
   }
 
+  /** @param {String} contents */
   copyToClipboard(contents) {
     copy(contents);
     this._clicked = true;
