@@ -4,7 +4,8 @@
 
 ![vite-plugin-fable logo](https://nojaf.com/vite-plugin-fable/img/logo.png)
 
-Hi there, this is an experiment, it somewhat works on my machine and please don't expect anything from this.
+> [!IMPORTANT]
+> This project is up for adoption. I'm looking for eager people to maintain this. Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
 
 ## What is this?
 

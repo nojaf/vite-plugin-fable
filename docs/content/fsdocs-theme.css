@@ -49,7 +49,7 @@ header .start strong {
   padding-bottom: var(--spacing-400);
 }
 
-#content p:last-child:has(a) {
+#content > p:last-child:has(a) {
   margin-top: 0;
   display: flex;
 
@@ -99,4 +99,14 @@ header .start strong {
 vpf-command {
   display: block;
   margin-block: var(--spacing-400);
+}
+
+blockquote {
+  margin-inline: 0;
+}
+
+blockquote > p {
+  font-weight: 600;
+  font-size: var(--font-500);
+  font-family: var(--monospace-font);
 }

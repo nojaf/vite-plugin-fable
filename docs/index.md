@@ -10,6 +10,9 @@ category: docs
 
 ![vite-plugin-fable logo](./img/logo.png)
 
+> This project is up for adoption. I'm looking for eager people to maintain this.<br>
+> Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
+
 ## Introduction
 
 When diving into Vite, I found myself having a friendly debate with what the [get started with Vite](https://fable.io/docs/getting-started/javascript.html#browser) guide suggests.  
