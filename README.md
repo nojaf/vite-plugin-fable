@@ -5,7 +5,7 @@
 ![vite-plugin-fable logo](https://nojaf.com/vite-plugin-fable/img/logo.png)
 
 > [!IMPORTANT]
-> This project is up for adoption. I'm looking for eager people to maintain this. Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
+> This project is up for adoption. I'm looking for eager people to maintain this.<br>Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
 
 ## What is this?
 
