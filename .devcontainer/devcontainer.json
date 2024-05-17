@@ -8,10 +8,10 @@
     // Configure properties specific to VS Code.
     "vscode": {
       // Add the IDs of extensions you want installed when the container is created.
-      "extensions": ["Ionide.Ionide-fsharp@7.18.2", "ms-vscode.csharp"],
+      "extensions": ["Ionide.Ionide-fsharp@7.20.0", "ms-vscode.csharp"],
       "settings": {
         "FSharp.useSdkScripts": true,
-        "FSharp.fsac.netCoreDllPath": "/root/.vscode-server/extensions/ionide.ionide-fsharp-7.18.2/bin/net7.0/fsautocomplete.dll"
+        "FSharp.fsac.netCoreDllPath": "/root/.vscode-server/extensions/ionide.ionide-fsharp-7.20.0/bin/net7.0/fsautocomplete.dll"
       }
     }
   },
@@ -23,14 +23,14 @@
     "ghcr.io/devcontainers/features/dotnet:2.0.5": {},
     "ghcr.io/michidk/devcontainers-features/bun:1": {},
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "21"
+      "version": "22"
     },
     "ghcr.io/devcontainers/features/powershell:1": {}
   },
   "postCreateCommand": ".devcontainer/init.sh",
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
-  "forwardPorts": [4000]
+  "forwardPorts": ["4000:4000"]
 
   // Use 'postCreateCommand' to run commands after the container is created.
   // "postCreateCommand": "dotnet restore",
