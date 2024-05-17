@@ -27,6 +27,7 @@
   "license": "Apache-2.0",
   "fundinding": "https://nojaf.com/",
   "dependencies": {
+    "@babel/code-frame": "^7.24.2",
     "@fable-org/fable-library-js": "^1.4.0",
     "promise.withresolvers": "^1.0.3",
     "rxjs": "^7.8.1",

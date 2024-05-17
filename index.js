@@ -9,6 +9,7 @@ import { filter, map, bufferTime, Subject } from "rxjs";
 import colors from "picocolors";
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
 import withResolvers from "promise.withresolvers";
+import { codeFrameColumns } from "@babel/code-frame";
 
 withResolvers.shim();
 
@@ -479,47 +480,34 @@ export default function fablePlugin(userConfig) {
         const diagnostics = await state.hotPromiseWithResolvers.promise;
         logDebug("handleHotUpdate", `leave for ${file}`);
 
-        if(diagnostics.length > 0){
+        if (diagnostics.length > 0) {
           logDebug("handleHotUpdate", `diagnostics ${diagnostics.length}`);
-          const filePath = diagnostics[0].fileName;
-          const errorLine = diagnostics[0].range.startLine;
-          const errorColumn = diagnostics[0].range.startColumn;
-          const linesBefore = 2;
-          const linesAfter = 2;
-          
-          const fileContent = await fs.readFile(filePath, 'utf-8');
-          const fileLines = fileContent.split('\n');
-          const frameStart = Math.max(0, errorLine - linesBefore - 1);
-          const frameEnd = Math.min(fileLines.length, errorLine + linesAfter);
-          const frameLines = fileLines.slice(frameStart, frameEnd);
-
-          // Construct the frame with line numbers and a caret for the error line
-          const frame = frameLines
-            .map((line, index) => {
-              const lineNumber = frameStart + index + 1;
-              const lineMarker = lineNumber === errorLine ? '>' : ' ';
-              const lineContent = `${lineMarker} ${lineNumber} | ${line}`;
-              const caretLine = lineNumber === errorLine ? `\n  | ${' '.repeat(errorColumn)}^` : '';
-              return `${lineContent}${caretLine}`;
-            })
-            .join('\n');
-          console.log(frame);
-
-          const err =  {
-            message: diagnostics[0].message,
+          const diagnostic = diagnostics[0];
+          const fileContent = await fs.readFile(diagnostic.fileName, "utf-8");
+          const frame = codeFrameColumns(fileContent, {
+            start: {
+              line: diagnostic.range.startLine,
+              col: diagnostic.range.startColumn,
+            },
+            end: {
+              line: diagnostic.range.endLine,
+              col: diagnostic.range.endColumn,
+            },
+          });
+          const err = {
+            message: diagnostic.message,
             frame: frame,
-            stack: '',
-            id: diagnostics[0].fileName,
+            stack: "",
+            id: diagnostic.fileName,
             loc: {
-              file: diagnostics[0].fileName,
-              line: diagnostics[0].range.startLine,
-              column: diagnostics[0].range.startColumn
-            }
+              file: diagnostic.fileName,
+              line: diagnostic.range.startLine,
+              column: diagnostic.range.startColumn,
+            },
           };
-          server.hot.send({ type: 'error', err });
+          server.hot.send({ type: "error", err });
           return [];
-        }
-        else{
+        } else {
           // Potentially a file that is not imported in the current graph was changed.
           // Vite should not try and hot update that module.
           return modules.filter((m) => m.importers.size !== 0);
