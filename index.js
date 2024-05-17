@@ -272,7 +272,7 @@ export default function fablePlugin(userConfig) {
 
   /**
    * F# files part of state.compilableFiles have changed.
-   * @returns {Promise<void>}
+   * @returns {Promise<import("./types.js").Diagnostic[]>}
    * @param {String[]} files
    */
   async function fsharpFileChanged(files) {
@@ -300,17 +300,20 @@ export default function fablePlugin(userConfig) {
 
         const diagnostics = compilationResult.fields[1];
         logDiagnostics(diagnostics);
+        return diagnostics;
       } else {
         logError(
           "watchChange",
           `compilation of ${files} failed, ${compilationResult.fields[0]}`,
         );
+        return [];
       }
     } catch (e) {
       logCritical(
         "watchChange",
         `compilation of ${files} failed, plugin could not handle this gracefully. ${e}`,
       );
+      return [];
     }
   }
 
@@ -398,6 +401,8 @@ export default function fablePlugin(userConfig) {
               ),
             )
             .subscribe(async (pendingChanges) => {
+              let diagnostics = [];
+
               if (pendingChanges.projectChanged) {
                 await projectChanged(
                   this.addWatchFile.bind(this),
@@ -406,11 +411,11 @@ export default function fablePlugin(userConfig) {
               } else {
                 const files = Array.from(pendingChanges.fsharpFiles);
                 logDebug("subscribe", files.join("\n"));
-                await fsharpFileChanged(files);
+                diagnostics = await fsharpFileChanged(files);
               }
 
               if (state.hotPromiseWithResolvers) {
-                state.hotPromiseWithResolvers.resolve();
+                state.hotPromiseWithResolvers.resolve(diagnostics);
                 state.hotPromiseWithResolvers = null;
               }
             });
@@ -421,6 +426,7 @@ export default function fablePlugin(userConfig) {
             type: "ProjectFileChanged",
             file: state.fsproj,
           });
+          // TODO: build start diagnostics
           await state.hotPromiseWithResolvers.promise;
         }
       } catch (e) {
@@ -470,11 +476,54 @@ export default function fablePlugin(userConfig) {
 
         // The idea is to wait for a shared promise to resolve.
         // This will resolve in the subscription of state.changedFSharpFiles
-        await state.hotPromiseWithResolvers.promise;
+        const diagnostics = await state.hotPromiseWithResolvers.promise;
         logDebug("handleHotUpdate", `leave for ${file}`);
-        // Potentially a file that is not imported in the current graph was changed.
-        // Vite should not try and hot update that module.
-        return modules.filter((m) => m.importers.size !== 0);
+
+        if(diagnostics.length > 0){
+          logDebug("handleHotUpdate", `diagnostics ${diagnostics.length}`);
+          const filePath = diagnostics[0].fileName;
+          const errorLine = diagnostics[0].range.startLine;
+          const errorColumn = diagnostics[0].range.startColumn;
+          const linesBefore = 2;
+          const linesAfter = 2;
+          
+          const fileContent = await fs.readFile(filePath, 'utf-8');
+          const fileLines = fileContent.split('\n');
+          const frameStart = Math.max(0, errorLine - linesBefore - 1);
+          const frameEnd = Math.min(fileLines.length, errorLine + linesAfter);
+          const frameLines = fileLines.slice(frameStart, frameEnd);
+
+          // Construct the frame with line numbers and a caret for the error line
+          const frame = frameLines
+            .map((line, index) => {
+              const lineNumber = frameStart + index + 1;
+              const lineMarker = lineNumber === errorLine ? '>' : ' ';
+              const lineContent = `${lineMarker} ${lineNumber} | ${line}`;
+              const caretLine = lineNumber === errorLine ? `\n  | ${' '.repeat(errorColumn)}^` : '';
+              return `${lineContent}${caretLine}`;
+            })
+            .join('\n');
+          console.log(frame);
+
+          const err =  {
+            message: diagnostics[0].message,
+            frame: frame,
+            stack: '',
+            id: diagnostics[0].fileName,
+            loc: {
+              file: diagnostics[0].fileName,
+              line: diagnostics[0].range.startLine,
+              column: diagnostics[0].range.startColumn
+            }
+          };
+          server.hot.send({ type: 'error', err });
+          return [];
+        }
+        else{
+          // Potentially a file that is not imported in the current graph was changed.
+          // Vite should not try and hot update that module.
+          return modules.filter((m) => m.importers.size !== 0);
+        }
       }
     },
     buildEnd: () => {
