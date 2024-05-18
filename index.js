@@ -342,6 +342,38 @@ export default function fablePlugin(userConfig) {
     }
   }
 
+  /**
+   * @param {import("./types.js").Diagnostic} diagnostic
+   * @returns {Promise<import("vite").HMRPayload>}
+   */
+  async function makeHmrError(diagnostic) {
+    const fileContent = await fs.readFile(diagnostic.fileName, "utf-8");
+    const frame = codeFrameColumns(fileContent, {
+      start: {
+        line: diagnostic.range.startLine,
+        col: diagnostic.range.startColumn,
+      },
+      end: {
+        line: diagnostic.range.endLine,
+        col: diagnostic.range.endColumn,
+      },
+    });
+    return {
+      type: "error",
+      err: {
+        message: diagnostic.message,
+        frame: frame,
+        stack: "",
+        id: diagnostic.fileName,
+        loc: {
+          file: diagnostic.fileName,
+          line: diagnostic.range.startLine,
+          column: diagnostic.range.startColumn,
+        },
+      },
+    };
+  }
+
   return {
     name: "vite-plugin-fable",
     enforce: "pre",
@@ -427,7 +459,6 @@ export default function fablePlugin(userConfig) {
             type: "ProjectFileChanged",
             file: state.fsproj,
           });
-          // TODO: build start diagnostics
           await state.hotPromiseWithResolvers.promise;
         }
       } catch (e) {
@@ -480,32 +511,13 @@ export default function fablePlugin(userConfig) {
         const diagnostics = await state.hotPromiseWithResolvers.promise;
         logDebug("handleHotUpdate", `leave for ${file}`);
 
-        if (diagnostics.length > 0) {
-          logDebug("handleHotUpdate", `diagnostics ${diagnostics.length}`);
-          const diagnostic = diagnostics[0];
-          const fileContent = await fs.readFile(diagnostic.fileName, "utf-8");
-          const frame = codeFrameColumns(fileContent, {
-            start: {
-              line: diagnostic.range.startLine,
-              col: diagnostic.range.startColumn,
-            },
-            end: {
-              line: diagnostic.range.endLine,
-              col: diagnostic.range.endColumn,
-            },
-          });
-          const err = {
-            message: diagnostic.message,
-            frame: frame,
-            stack: "",
-            id: diagnostic.fileName,
-            loc: {
-              file: diagnostic.fileName,
-              line: diagnostic.range.startLine,
-              column: diagnostic.range.startColumn,
-            },
-          };
-          server.hot.send({ type: "error", err });
+        const errorDiagnostic = diagnostics.find(
+          (diag) => diag.severity === "Error",
+        );
+        if (errorDiagnostic) {
+          const msg = await makeHmrError(errorDiagnostic);
+          console.log(msg);
+          server.hot.send(msg);
           return [];
         } else {
           // Potentially a file that is not imported in the current graph was changed.

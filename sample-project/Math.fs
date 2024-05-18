@@ -1,3 +1,3 @@
 ﻿module Math
 
-let sum a b = a +  
+let sum a b = a + 2
