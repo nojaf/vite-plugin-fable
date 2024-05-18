@@ -49,7 +49,7 @@ export interface PluginState {
   configuration: string;
   dependentFiles: Set<string>;
   pendingChanges: Subscription | null;
-  hotPromiseWithResolvers: any; // Define a more specific type if possible
+  hotPromiseWithResolvers: PromiseWithResolvers<Array<Diagnostic>>;
   isBuild: boolean;
 }
 
