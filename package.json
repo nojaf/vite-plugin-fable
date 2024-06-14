@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-fable",
-  "version": "0.0.29",
+  "version": "0.0.30",
   "homepage": "https://nojaf.com/vite-plugin-fable/",
   "description": "",
   "main": "index.js",
@@ -28,7 +28,7 @@
   "fundinding": "https://nojaf.com/",
   "dependencies": {
     "@babel/code-frame": "^7.24.2",
-    "@fable-org/fable-library-js": "^1.4.0",
+    "@fable-org/fable-library-js": "^1.4.2",
     "promise.withresolvers": "^1.0.3",
     "rxjs": "^7.8.1",
     "ts-lsp-client": "^1.0.3"
