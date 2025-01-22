@@ -16,7 +16,7 @@ let fableLibrary =
 
 let sampleApp =
     {
-        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "sample-project/App.fsproj")
+        Project = Path.CombineNormalize (__SOURCE_DIRECTORY__, "../sample-project/App.fsproj")
         FableLibrary = fableLibrary
         Configuration = "Release"
         Exclude = Array.empty
@@ -54,7 +54,7 @@ let ronnies =
 [<Test>]
 let DebugTest () =
     task {
-        let config = ronnies
+        let config = sampleApp
         Directory.SetCurrentDirectory (FileInfo(config.Project).DirectoryName)
 
         let struct (serverStream, clientStream) = FullDuplexStream.CreatePair ()
@@ -73,9 +73,7 @@ let DebugTest () =
                 {
                     FileNames =
                         [|
-                            @"C:\Users\nojaf\Projects\ronnies.be\app\Components\Loader.fs"
-                            @"C:\Users\nojaf\Projects\ronnies.be\app\Pages\Rules.fsi"
-                            @"C:\Users\nojaf\Projects\ronnies.be\app\Bindings\ReactRouterDom.fs"
+                            Path.CombineNormalize (FileInfo(sampleApp.Project).Directory.FullName, "Math.fs")
                         |]
                 }
 
