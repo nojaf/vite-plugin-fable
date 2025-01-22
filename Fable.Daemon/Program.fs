@@ -352,10 +352,7 @@ type FableServer(sender : Stream, reader : Stream, logger : ILogger) as this =
                 JsonSerializerOptions (PropertyNamingPolicy = JsonNamingPolicy.CamelCase)
 
             let jsonFSharpOptions =
-                JsonFSharpOptions
-                    .Default()
-                    .WithUnionTagName("case")
-                    .WithUnionFieldsName ("fields")
+                JsonFSharpOptions.Default().WithUnionTagName("case").WithUnionFieldsName ("fields")
 
             options.Converters.Add (JsonUnionConverter jsonFSharpOptions)
             options
