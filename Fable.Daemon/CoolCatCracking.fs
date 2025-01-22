@@ -114,7 +114,7 @@ module CoolCatCracking =
 
             // NU1608: Detected package version outside of dependency constraint, see https://learn.microsoft.com/en-us/nuget/reference/errors-and-warnings/nu1608
             let arguments =
-                $"/restore /t:%s{targets} %s{properties}  -warnAsMessage:NU1608 --getItem:FscCommandLineArgs --getItem:ProjectReference --getProperty:OutputType"
+                $"/restore /t:%s{targets} %s{properties}  -warnAsMessage:NU1608 -warnAsMessage:NU1605 --getItem:FscCommandLineArgs --getItem:ProjectReference --getProperty:OutputType"
 
             let! json = MSBuild.dotnet_msbuild_with_defines logger fsproj arguments defines
 
