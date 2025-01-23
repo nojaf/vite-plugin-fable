@@ -33,3 +33,5 @@ Update the `package.json` (in the root) to:
 ```
 
 Install again using `bun install`.
+
+[Next]({{fsdocs-next-page-link}})
