@@ -32,7 +32,7 @@ jobs:
 
       - name: Build sample
         run: bun i && bun run build
-        working-directory: ./sample
+        working-directory: ./sample-project
 
       - name: Build docs
         run: dotnet fsdocs build --noapidocs --projects "$(pwd)/Fable.Daemon/Fable.Daemon.fsproj"
