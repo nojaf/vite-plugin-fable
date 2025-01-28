@@ -1,10 +1,10 @@
 {
-  "lockfileVersion": 0,
+  "lockfileVersion": 1,
   "workspaces": {
     "": {
       "name": "sample-project",
       "dependencies": {
-        "@fable-org/fable-library-js": "^1.7.0",
+        "@fable-org/fable-library-js": "^1.10.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
       },
@@ -106,7 +106,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.24.0", "", { "os": "win32", "cpu": "x64" }, "sha512-7IAFPrjSQIJrGsK6flwg7NFmwBoSTyF3rl7If0hNUFQU4ilTsEPL6GuMuU9BfIWVVGuRnuIidkSMC+c0Otu8IA=="],
 
-    "@fable-org/fable-library-js": ["@fable-org/fable-library-js@1.7.0", "", {}, "sha512-rm20PXnHi++zTGBSsJYW20ZldcfBBuZa2n6F+f5tq9G2qh4ARfU2vWcwYTqRnkO4tsZefpY+yPfNwmYOvmXHVw=="],
+    "@fable-org/fable-library-js": ["@fable-org/fable-library-js@1.10.0", "", {}, "sha512-kAaHOGtUbgErHFpIgpJmXbu3f/BejCUCgeYqdjQObrSn5EzJHb8/abcq7aFBp4sJ+fgKUq4j8KGcTSwdtMK55A=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.5", "", { "dependencies": { "@jridgewell/set-array": "^1.2.1", "@jridgewell/sourcemap-codec": "^1.4.10", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-IzL8ZoEDIBRWEzlCcRhOaCupYyN5gdIK+Q6fbFdPDg6HqX6jpkItn7DFIpW9LQzXG6Df9sA7+OKnq0qlz/GaQg=="],
 

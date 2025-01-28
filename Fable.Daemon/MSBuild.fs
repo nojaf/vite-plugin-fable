@@ -22,7 +22,7 @@ let dotnet_msbuild_with_defines
         psi.RedirectStandardOutput <- true
         psi.RedirectStandardError <- true
         psi.UseShellExecute <- false
-        psi.EnvironmentVariables.Add ("DOTNET_NOLOGO", "1")
+        psi.EnvironmentVariables.["DOTNET_NOLOGO"] <- "1"
 
         if not (List.isEmpty defines) then
             let definesValue = defines |> String.concat ";"

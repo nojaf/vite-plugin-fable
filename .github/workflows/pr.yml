@@ -30,5 +30,9 @@ jobs:
       - name: Build daemon
         run : bun run postinstall
 
+      - name: Build sample
+        run: bun i && bun run build
+        working-directory: ./sample-project
+
       - name: Build docs
         run: dotnet fsdocs build --noapidocs --projects "$(pwd)/Fable.Daemon/Fable.Daemon.fsproj"
