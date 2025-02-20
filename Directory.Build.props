@@ -17,9 +17,9 @@
         <PackageReference Include="Fable.Compiler"/>
     </ItemGroup>
     <PropertyGroup>
-        <RepositoryUrl>https://github.com/nojaf/vite-plugin-fable</RepositoryUrl>
-        <PackageProjectUrl>https://nojaf.com/vite-plugin-fable/</PackageProjectUrl>
-        <FsDocsLicenseLink>https://github.com/nojaf/vite-plugin-fable/blob/main/LICENSE</FsDocsLicenseLink>
+        <RepositoryUrl>https://github.com/fable-compiler/vite-plugin-fable</RepositoryUrl>
+        <PackageProjectUrl>http://fable.io/vite-plugin-fable/</PackageProjectUrl>
+        <FsDocsLicenseLink>https://github.com/fable-compiler/vite-plugin-fable/blob/main/LICENSE</FsDocsLicenseLink>
         <Authors>Florian Verdonck</Authors>
     </PropertyGroup>
 </Project>

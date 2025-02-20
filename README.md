@@ -6,7 +6,7 @@
 <img alt="vite-plugin-fable logo" src="https://github.com/fable-compiler/vite-plugin-fable/blob/main/docs/img/logo.png?raw=true" height="300"></img>
 
 > [!IMPORTANT]
-> This project is up for adoption. I'm looking for eager people to maintain this.<br>Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
+> This project is up for adoption. I'm looking for eager people to maintain this.<br>Please open a [discussion](https://github.com/fable-compiler/vite-plugin-fable/discussions) if you are interested!
 
 ## What is this?
 

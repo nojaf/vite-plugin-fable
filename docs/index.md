@@ -11,7 +11,7 @@ category: docs
 ![vite-plugin-fable logo](./img/logo.png)
 
 > This project is up for adoption. I'm looking for eager people to maintain this.<br>
-> Please open a [discussion](https://github.com/nojaf/vite-plugin-fable/discussions) if you are interested!
+> Please open a [discussion](https://github.com/fable-compiler/vite-plugin-fable/discussions) if you are interested!
 
 ## Introduction
 

@@ -42,14 +42,14 @@ let fantomasTools =
         NoReflection = false
     }
 
-let ronnies =
-    {
-        Project = @"C:\Users\nojaf\Projects\ronnies.be\app\App.fsproj"
-        FableLibrary = fableLibrary
-        Configuration = "Debug"
-        Exclude = [| "Nojaf.Fable.React.Plugin" |]
-        NoReflection = true
-    }
+// let ronnies =
+//     {
+//         Project = @"C:\Users\nojaf\Projects\ronnies.be\app\App.fsproj"
+//         FableLibrary = fableLibrary
+//         Configuration = "Debug"
+//         Exclude = [| "Nojaf.Fable.React.Plugin" |]
+//         NoReflection = true
+//     }
 
 [<Test>]
 let DebugTest () =

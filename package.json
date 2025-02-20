@@ -1,7 +1,7 @@
 {
   "name": "vite-plugin-fable",
   "version": "0.0.34",
-  "homepage": "https://nojaf.com/vite-plugin-fable/",
+  "homepage": "http://fable.io/vite-plugin-fable/",
   "description": "",
   "main": "index.js",
   "type": "module",

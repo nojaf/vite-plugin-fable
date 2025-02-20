@@ -14,7 +14,7 @@ Clone the [Fable repository](https://github.com/fable-compiler/Fable) as a sibli
 
 ## Using Local Fable Binaries
 
-Set `<UseLocalFableCompiler>true</UseLocalFableCompiler>` in [Directory.Build.props](https://github.com/nojaf/vite-plugin-fable/blob/main/Directory.Build.props). After running `bun install`, the daemon will be built using the local binary.
+Set `<UseLocalFableCompiler>true</UseLocalFableCompiler>` in [Directory.Build.props](https://github.com/fable-compiler/vite-plugin-fable/blob/main/Directory.Build.props). After running `bun install`, the daemon will be built using the local binary.
 
 ## Use Local fable-library-js
 
